@@ -44,7 +44,7 @@ export function QuestionnaireFormContent() {
   }, [userIdParam]);
 
   const calculateMacros = useCallback(() => {
-    if (!gender || !age || !weight || !height || !goal) return;
+    if (!gender || !age || !weight || !height || !activity || !goal) return;
 
     const ageNum = Number(age);
     const weightNum = Number(weight);
@@ -62,8 +62,16 @@ export function QuestionnaireFormContent() {
       bmr = 10 * weightNum + 6.25 * heightNum - 5 * ageNum - 161;
     }
 
-    // Используем умеренную активность по умолчанию (1.55)
-    const multiplier = 1.55;
+    // Коэффициент активности
+    const activityMultipliers: Record<string, number> = {
+      sedentary: 1.2,
+      light: 1.375,
+      moderate: 1.55,
+      active: 1.725,
+      very_active: 1.9
+    };
+
+    const multiplier = activityMultipliers[activity] || 1.55;
     let totalCalories = bmr * multiplier;
 
     // Корректировка по цели
@@ -90,7 +98,7 @@ export function QuestionnaireFormContent() {
     setProtein(proteinGrams);
     setFat(fatGrams);
     setCarbs(carbsGrams);
-  }, [gender, age, weight, height, goal]);
+  }, [gender, age, weight, height, activity, goal]);
 
   const handleNext = () => {
     if (step === 0) {
@@ -103,9 +111,11 @@ export function QuestionnaireFormContent() {
       setStep(4);
     } else if (step === 4 && height) {
       setStep(5);
-    } else if (step === 5 && goal) {
-      calculateMacros();
+    } else if (step === 5 && activity) {
       setStep(6);
+    } else if (step === 6 && goal) {
+      calculateMacros();
+      setStep(7);
       // Автоматически сохраняем после расчета
       setTimeout(() => {
         handleSubmit();
@@ -121,33 +131,43 @@ export function QuestionnaireFormContent() {
 
   const handleSubmit = async () => {
     if (!userId || !calories || !protein || !fat || !carbs || saved || loading) {
+      console.log("[handleSubmit] Пропуск сохранения:", { userId, calories, protein, fat, carbs, saved, loading });
       return;
     }
+
+    console.log("[handleSubmit] Начало сохранения:", { userId, calories, protein, fat, carbs, activity, goal });
 
     setLoading(true);
     setError(null);
 
     try {
+      const payload = {
+        gender,
+        age: Number(age),
+        weight: Number(weight),
+        height: Number(height),
+        activity: activity || "moderate",
+        goal,
+        calories,
+        protein,
+        fat,
+        carbs
+      };
+
+      console.log("[handleSubmit] Отправка данных:", payload);
+
       const response = await fetch(`/api/save?id=${userId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          gender,
-          age: Number(age),
-          weight: Number(weight),
-          height: Number(height),
-          activity: "moderate",
-          goal,
-          calories,
-          protein,
-          fat,
-          carbs
-        })
+        body: JSON.stringify(payload)
       });
 
+      console.log("[handleSubmit] Статус ответа:", response.status);
+
       const data = await response.json();
+      console.log("[handleSubmit] Ответ сервера:", data);
 
       if (!response.ok) {
         setError(data.error || "Ошибка сохранения данных");
@@ -157,8 +177,9 @@ export function QuestionnaireFormContent() {
 
       setSaved(true);
       setLoading(false);
+      console.log("[handleSubmit] Данные успешно сохранены");
     } catch (err) {
-      console.error("Ошибка отправки формы:", err);
+      console.error("[handleSubmit] Ошибка отправки формы:", err);
       setError("Не удалось отправить данные. Попробуйте позже.");
       setLoading(false);
     }
@@ -185,8 +206,8 @@ export function QuestionnaireFormContent() {
     );
   }
 
-  const totalSteps = 5;
-  const progress = step === 0 ? 0 : (step / totalSteps) * 100;
+  const totalSteps = 6;
+  const progress = step === 0 ? 0 : ((step - 1) / totalSteps) * 100;
 
   // Экран 0: Приветствие
   if (step === 0) {
@@ -213,8 +234,8 @@ export function QuestionnaireFormContent() {
     );
   }
 
-  // Экран 6: Результаты
-  if (step === 6) {
+  // Экран 7: Результаты
+  if (step === 7) {
     return (
       <div className="min-h-screen bg-background p-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
@@ -387,6 +408,74 @@ export function QuestionnaireFormContent() {
     },
     {
       step: 5,
+      title: "Какой у тебя уровень активности?",
+      icon: "🏃",
+      content: (
+        <div>
+          <p className="text-sm text-gray-500 mb-4">Это помогает учесть тренировочные нагрузки.</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => setActivity("sedentary")}
+              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                activity === "sedentary"
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-xl mr-3">🪑</span>
+              <span className="text-base font-medium text-gray-800">Сидячая работа</span>
+            </button>
+            <button
+              onClick={() => setActivity("light")}
+              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                activity === "light"
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-xl mr-3">🚶</span>
+              <span className="text-base font-medium text-gray-800">1-2 тренировки в неделю</span>
+            </button>
+            <button
+              onClick={() => setActivity("moderate")}
+              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                activity === "moderate"
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-xl mr-3">🏃</span>
+              <span className="text-base font-medium text-gray-800">3-4 тренировки</span>
+            </button>
+            <button
+              onClick={() => setActivity("active")}
+              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                activity === "active"
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-xl mr-3">💪</span>
+              <span className="text-base font-medium text-gray-800">5+ тренировок</span>
+            </button>
+            <button
+              onClick={() => setActivity("very_active")}
+              className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                activity === "very_active"
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-xl mr-3">🔥</span>
+              <span className="text-base font-medium text-gray-800">Спорт ежедневно</span>
+            </button>
+          </div>
+        </div>
+      ),
+      canProceed: !!activity
+    },
+    {
+      step: 6,
       title: "Какая цель по весу?",
       icon: "🎯",
       content: (
