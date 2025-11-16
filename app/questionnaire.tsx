@@ -116,10 +116,6 @@ export function QuestionnaireFormContent() {
     } else if (step === 6 && goal) {
       calculateMacros();
       setStep(7);
-      // Автоматически сохраняем после расчета
-      setTimeout(() => {
-        handleSubmit();
-      }, 500);
     }
   };
 
@@ -305,12 +301,47 @@ export function QuestionnaireFormContent() {
             </div>
           )}
 
+          {!saved && (
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            >
+              {loading ? "Сохранение..." : "Сохранить данные"}
+            </button>
+          )}
+
           <button
-            onClick={handleBackToBot}
-            className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors"
+            onClick={() => {
+              // Сброс всех данных и возврат к началу
+              setStep(0);
+              setGender("");
+              setAge("");
+              setWeight("");
+              setHeight("");
+              setActivity("");
+              setGoal("");
+              setCalories(null);
+              setProtein(null);
+              setFat(null);
+              setCarbs(null);
+              setSaved(false);
+              setError(null);
+              setLoading(false);
+            }}
+            className="w-full py-4 px-6 bg-gray-200 text-gray-700 font-semibold rounded-xl shadow-lg hover:bg-gray-300 transition-colors mb-4"
           >
-            Вернуться в бота
+            Пройти тест заново
           </button>
+
+          {saved && (
+            <button
+              onClick={handleBackToBot}
+              className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors"
+            >
+              Вернуться в бота
+            </button>
+          )}
         </div>
       </div>
     );
