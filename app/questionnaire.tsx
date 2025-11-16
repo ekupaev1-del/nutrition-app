@@ -2,17 +2,18 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import "./globals.css";
 
-// Клиентский компонент с формой
+// Клиентский компонент с пошаговой формой
 export function QuestionnaireFormContent() {
   const searchParams = useSearchParams();
   const userIdParam = searchParams.get("id");
 
   const [userId, setUserId] = useState<number | null>(null);
+  const [step, setStep] = useState(0); // 0 = приветствие, 1-6 = шаги, 7 = результаты
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   // Форма данные
   const [gender, setGender] = useState<string>("");
@@ -83,10 +84,10 @@ export function QuestionnaireFormContent() {
     totalCalories = Math.round(totalCalories * goalMultiplier);
 
     // Макроэлементы (стандартное распределение)
-    const proteinGrams = Math.round(weightNum * 2.2); // 2.2г белка на кг веса
+    const proteinGrams = Math.round(weightNum * 2.2);
     const proteinCalories = proteinGrams * 4;
 
-    const fatCalories = Math.round(totalCalories * 0.25); // 25% от калорий
+    const fatCalories = Math.round(totalCalories * 0.25);
     const fatGrams = Math.round(fatCalories / 9);
 
     const carbsCalories = totalCalories - proteinCalories - fatCalories;
@@ -98,35 +99,39 @@ export function QuestionnaireFormContent() {
     setCarbs(carbsGrams);
   }, [gender, age, weight, height, activity, goal]);
 
-  // Автоматический пересчёт макроэлементов при изменении полей
-  useEffect(() => {
-    calculateMacros();
-  }, [calculateMacros]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(false);
-
-    if (!userId) {
-      setError("ID пользователя не найден");
-      return;
+  const handleNext = () => {
+    if (step === 0) {
+      setStep(1);
+    } else if (step === 1 && gender) {
+      setStep(2);
+    } else if (step === 2 && age) {
+      setStep(3);
+    } else if (step === 3 && weight) {
+      setStep(4);
+    } else if (step === 4 && height) {
+      setStep(5);
+    } else if (step === 5 && activity) {
+      setStep(6);
+    } else if (step === 6 && goal) {
+      calculateMacros();
+      setStep(7);
     }
+  };
 
-    // Пересчитываем макроэлементы перед отправкой
-    calculateMacros();
-
-    if (!gender || !age || !weight || !height || !activity || !goal) {
-      setError("Заполните все обязательные поля");
-      return;
+  const handleBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
     }
+  };
 
-    if (!calories || !protein || !fat || !carbs) {
-      setError("Не удалось рассчитать калории и макроэлементы");
+  const handleSubmit = async () => {
+    if (!userId || !calories || !protein || !fat || !carbs) {
+      setError("Не удалось рассчитать нормы");
       return;
     }
 
     setLoading(true);
+    setError(null);
 
     try {
       const response = await fetch(`/api/save?id=${userId}`, {
@@ -152,15 +157,15 @@ export function QuestionnaireFormContent() {
 
       if (!response.ok) {
         setError(data.error || "Ошибка сохранения данных");
+        setLoading(false);
         return;
       }
 
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 5000);
+      // Успешно сохранено - можно показать успех или остаться на экране результатов
+      setLoading(false);
     } catch (err) {
       console.error("Ошибка отправки формы:", err);
       setError("Не удалось отправить данные. Попробуйте позже.");
-    } finally {
       setLoading(false);
     }
   };
@@ -177,143 +182,302 @@ export function QuestionnaireFormContent() {
     );
   }
 
+  const totalSteps = 6;
+  const progress = step === 0 ? 0 : ((step - 1) / totalSteps) * 100;
+
+  // Приветственный экран
+  if (step === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="max-w-md w-full text-center"
+        >
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring" }}
+            className="mb-8"
+          >
+            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+              <span className="text-4xl">✨</span>
+            </div>
+          </motion.div>
+          <h1 className="text-4xl font-bold mb-4 text-gray-800">
+            Мой путь к балансу
+          </h1>
+          <p className="text-lg text-gray-600 mb-8">
+            Давайте рассчитаем вашу персональную дневную норму калорий и макроэлементов
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleNext}
+            className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-lg shadow-lg hover:bg-green-700 transition-colors"
+          >
+            Начать анкету
+          </motion.button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // Экран результатов
+  if (step === 7) {
+    return (
+      <div className="min-h-screen bg-background p-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-8"
+          >
+            <h2 className="text-3xl font-bold mb-2">Ваша дневная норма</h2>
+            <p className="text-gray-600">Рассчитано специально для вас</p>
+          </motion.div>
+
+          <AnimatePresence>
+            {calories && protein && fat && carbs && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white rounded-2xl shadow-xl p-8 space-y-6"
+              >
+                <div className="grid grid-cols-2 gap-6">
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="p-6 bg-green-50 rounded-xl border-2 border-green-200"
+                  >
+                    <div className="text-sm text-gray-600 mb-1">Калории</div>
+                    <div className="text-3xl font-bold text-green-700">{calories}</div>
+                    <div className="text-sm text-gray-500 mt-1">ккал/день</div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="p-6 bg-blue-50 rounded-xl border-2 border-blue-200"
+                  >
+                    <div className="text-sm text-gray-600 mb-1">Белки</div>
+                    <div className="text-3xl font-bold text-blue-700">{protein}</div>
+                    <div className="text-sm text-gray-500 mt-1">г/день</div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="p-6 bg-orange-50 rounded-xl border-2 border-orange-200"
+                  >
+                    <div className="text-sm text-gray-600 mb-1">Жиры</div>
+                    <div className="text-3xl font-bold text-orange-700">{fat}</div>
+                    <div className="text-sm text-gray-500 mt-1">г/день</div>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="p-6 bg-purple-50 rounded-xl border-2 border-purple-200"
+                  >
+                    <div className="text-sm text-gray-600 mb-1">Углеводы</div>
+                    <div className="text-3xl font-bold text-purple-700">{carbs}</div>
+                    <div className="text-sm text-gray-500 mt-1">г/день</div>
+                  </motion.div>
+                </div>
+
+                {error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-lg shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Сохранение..." : "Сохранить результаты"}
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    );
+  }
+
+  // Шаги вопросов
+  const questions = [
+    {
+      question: "Укажите ваш пол",
+      options: [
+        { value: "male", label: "Мужской" },
+        { value: "female", label: "Женский" }
+      ],
+      current: gender,
+      setCurrent: setGender
+    },
+    {
+      question: "Сколько вам лет?",
+      type: "number",
+      placeholder: "Введите ваш возраст",
+      current: age,
+      setCurrent: setAge,
+      min: 1,
+      max: 120
+    },
+    {
+      question: "Какой у вас вес?",
+      type: "number",
+      placeholder: "Введите вес в килограммах",
+      current: weight,
+      setCurrent: setWeight,
+      min: 1,
+      step: 0.1,
+      unit: "кг"
+    },
+    {
+      question: "Какой у вас рост?",
+      type: "number",
+      placeholder: "Введите рост в сантиметрах",
+      current: height,
+      setCurrent: setHeight,
+      min: 1,
+      unit: "см"
+    },
+    {
+      question: "Какой у вас уровень активности?",
+      options: [
+        { value: "sedentary", label: "Малоподвижный", desc: "Сидячая работа, мало спорта" },
+        { value: "light", label: "Лёгкая активность", desc: "Тренировки 1-3 раза в неделю" },
+        { value: "moderate", label: "Умеренная активность", desc: "Тренировки 3-5 раз в неделю" },
+        { value: "active", label: "Высокая активность", desc: "Тренировки 6-7 раз в неделю" },
+        { value: "very_active", label: "Очень высокая активность", desc: "Тренировки 2 раза в день" }
+      ],
+      current: activity,
+      setCurrent: setActivity
+    },
+    {
+      question: "Какую цель вы преследуете?",
+      options: [
+        { value: "lose", label: "Похудеть", desc: "Снизить вес" },
+        { value: "maintain", label: "Поддерживать вес", desc: "Сохранить текущий вес" },
+        { value: "gain", label: "Набрать вес", desc: "Увеличить мышечную массу" }
+      ],
+      current: goal,
+      setCurrent: setGoal
+    }
+  ];
+
+  const currentQuestion = questions[step - 1];
+  const canProceed = currentQuestion.current && currentQuestion.current !== "";
+
   return (
     <div className="min-h-screen bg-background p-4 py-8">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Мой путь к балансу</h1>
-        <p className="text-gray-600 mb-6">Заполните анкету для расчёта вашей дневной нормы</p>
-
-        {success && (
-          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
-            ✅ Данные успешно сохранены!
+        {/* Прогресс-бар */}
+        <div className="mb-8">
+          <div className="flex justify-between text-sm text-gray-600 mb-2">
+            <span>Вопрос {step} из {totalSteps}</span>
+            <span>{Math.round(progress)}%</span>
           </div>
-        )}
-
-        {error && userId && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            ❌ {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium mb-2">Пол *</label>
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              required
-            >
-              <option value="">Выберите пол</option>
-              <option value="male">Мужской</option>
-              <option value="female">Женский</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Возраст *</label>
-            <input
-              type="number"
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              min="1"
-              max="120"
-              required
+          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.3 }}
+              className="h-full bg-green-600 rounded-full"
             />
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Вес (кг) *</label>
-            <input
-              type="number"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              min="1"
-              step="0.1"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Рост (см) *</label>
-            <input
-              type="number"
-              value={height}
-              onChange={(e) => setHeight(e.target.value)}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              min="1"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Уровень активности *</label>
-            <select
-              value={activity}
-              onChange={(e) => setActivity(e.target.value)}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              required
-            >
-              <option value="">Выберите уровень активности</option>
-              <option value="sedentary">Малоподвижный (сидячая работа, мало спорта)</option>
-              <option value="light">Лёгкая активность (тренировки 1-3 раза в неделю)</option>
-              <option value="moderate">Умеренная активность (тренировки 3-5 раз в неделю)</option>
-              <option value="active">Высокая активность (тренировки 6-7 раз в неделю)</option>
-              <option value="very_active">Очень высокая активность (тренировки 2 раза в день)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Цель *</label>
-            <select
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              required
-            >
-              <option value="">Выберите цель</option>
-              <option value="lose">Похудеть</option>
-              <option value="maintain">Поддерживать вес</option>
-              <option value="gain">Набрать вес</option>
-            </select>
-          </div>
-
-          {(calories || protein || fat || carbs) && (
-            <div className="p-4 bg-green-50 rounded-md border border-green-200">
-              <h3 className="font-semibold mb-3">Ваша дневная норма:</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Калории:</span>
-                  <span className="ml-2 font-semibold">{calories} ккал</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Белки:</span>
-                  <span className="ml-2 font-semibold">{protein} г</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Жиры:</span>
-                  <span className="ml-2 font-semibold">{fat} г</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Углеводы:</span>
-                  <span className="ml-2 font-semibold">{carbs} г</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 px-4 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        {/* Вопрос */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white rounded-2xl shadow-xl p-8"
           >
-            {loading ? "Сохранение..." : "Сохранить данные"}
-          </button>
-        </form>
+            <h2 className="text-2xl font-bold mb-8 text-gray-800">
+              {currentQuestion.question}
+            </h2>
+
+            {currentQuestion.options ? (
+              <div className="space-y-3">
+                {currentQuestion.options.map((option, idx) => (
+                  <motion.button
+                    key={option.value}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => currentQuestion.setCurrent(option.value)}
+                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                      currentQuestion.current === option.value
+                        ? "border-green-500 bg-green-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-800">{option.label}</div>
+                    {"desc" in option && option.desc && (
+                      <div className="text-sm text-gray-500 mt-1">{option.desc}</div>
+                    )}
+                  </motion.button>
+                ))}
+              </div>
+            ) : (
+              <motion.input
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                type={currentQuestion.type || "text"}
+                value={currentQuestion.current || ""}
+                onChange={(e) => currentQuestion.setCurrent(e.target.value)}
+                placeholder={currentQuestion.placeholder}
+                min={currentQuestion.min}
+                max={currentQuestion.max}
+                step={currentQuestion.step}
+                className="w-full px-6 py-4 text-lg border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500 transition-colors"
+              />
+            )}
+
+            {/* Кнопки навигации */}
+            <div className="flex gap-4 mt-8">
+              {step > 1 && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleBack}
+                  className="flex-1 py-3 px-6 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Назад
+                </motion.button>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleNext}
+                disabled={!canProceed}
+                className="flex-1 py-3 px-6 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {step === totalSteps ? "Рассчитать" : "Далее"}
+              </motion.button>
+            </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );
 }
-
