@@ -11,7 +11,7 @@ export function QuestionnaireFormContent() {
   const userIdParam = searchParams.get("id");
 
   const [userId, setUserId] = useState<number | null>(null);
-  const [step, setStep] = useState(0); // 0 = приветствие, 1-6 = шаги, 7 = результаты
+  const [step, setStep] = useState(0); // 0 = приветствие, 1-6 = шаги
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -21,6 +21,7 @@ export function QuestionnaireFormContent() {
   const [age, setAge] = useState<string>("");
   const [weight, setWeight] = useState<string>("");
   const [height, setHeight] = useState<string>("");
+  const [activity, setActivity] = useState<string>("");
   const [goal, setGoal] = useState<string>("");
   const [calories, setCalories] = useState<number | null>(null);
   const [protein, setProtein] = useState<number | null>(null);
@@ -41,58 +42,6 @@ export function QuestionnaireFormContent() {
       setError("ID не передан. Запустите анкету через Telegram бота");
     }
   }, [userIdParam]);
-
-  // Автопереход после выбора пола
-  useEffect(() => {
-    if (step === 1 && gender) {
-      const timer = setTimeout(() => setStep(2), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [step, gender]);
-
-  // Автопереход после ввода возраста
-  useEffect(() => {
-    if (step === 2 && age && Number(age) > 0) {
-      const timer = setTimeout(() => setStep(3), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [step, age]);
-
-  // Автопереход после ввода веса
-  useEffect(() => {
-    if (step === 3 && weight && Number(weight) > 0) {
-      const timer = setTimeout(() => setStep(4), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [step, weight]);
-
-  // Автопереход после ввода роста
-  useEffect(() => {
-    if (step === 4 && height && Number(height) > 0) {
-      const timer = setTimeout(() => setStep(5), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [step, height]);
-
-  // Автопереход после выбора цели
-  useEffect(() => {
-    if (step === 5 && goal) {
-      const timer = setTimeout(() => {
-        calculateMacros();
-        setStep(6);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, goal]);
-
-  // Автоматическое сохранение при появлении результатов
-  useEffect(() => {
-    if (step === 6 && calories && protein && fat && carbs && !saved && !loading) {
-      handleSubmit();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, calories, protein, fat, carbs, saved, loading]);
 
   const calculateMacros = useCallback(() => {
     if (!gender || !age || !weight || !height || !goal) return;
@@ -143,8 +92,35 @@ export function QuestionnaireFormContent() {
     setCarbs(carbsGrams);
   }, [gender, age, weight, height, goal]);
 
+  const handleNext = () => {
+    if (step === 0) {
+      setStep(1);
+    } else if (step === 1 && gender) {
+      setStep(2);
+    } else if (step === 2 && age) {
+      setStep(3);
+    } else if (step === 3 && weight) {
+      setStep(4);
+    } else if (step === 4 && height) {
+      setStep(5);
+    } else if (step === 5 && goal) {
+      calculateMacros();
+      setStep(6);
+      // Автоматически сохраняем после расчета
+      setTimeout(() => {
+        handleSubmit();
+      }, 500);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!userId || !calories || !protein || !fat || !carbs || saved) {
+    if (!userId || !calories || !protein || !fat || !carbs || saved || loading) {
       return;
     }
 
@@ -162,7 +138,7 @@ export function QuestionnaireFormContent() {
           age: Number(age),
           weight: Number(weight),
           height: Number(height),
-          activity: "moderate", // Дефолтная активность
+          activity: "moderate",
           goal,
           calories,
           protein,
@@ -193,7 +169,6 @@ export function QuestionnaireFormContent() {
     if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
       (window as any).Telegram.WebApp.close();
     } else {
-      // Fallback - просто закрываем окно/вкладку
       window.close();
     }
   };
@@ -201,352 +176,310 @@ export function QuestionnaireFormContent() {
   if (error && !userId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 text-center"
-        >
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 text-center">
           <h2 className="text-xl font-semibold mb-2 text-red-600">Ошибка</h2>
           <p className="text-gray-700">{error}</p>
           <p className="text-sm text-gray-500 mt-4">Запустите анкету через Telegram бота</p>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Экран 1: Приветствие
-  if (step === 0) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="max-w-md w-full text-center px-6"
-        >
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-sm text-gray-500 mb-4 font-light"
-          >
-            Твой дневник питания
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-3xl md:text-4xl font-bold mb-4 text-gray-800 leading-tight"
-          >
-            Считаем, сколько калорий вам нужно в день
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-lg text-gray-600 mb-10"
-          >
-            Просто ответьте на пару вопросов
-          </motion.p>
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5, type: "spring" }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setStep(1)}
-            className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg"
-          >
-            Начать
-          </motion.button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Экран 7: Результаты
-  if (step === 6) {
-    return (
-      <div className="min-h-screen bg-background p-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8"
-          >
-            <h2 className="text-3xl font-bold mb-2 text-gray-800">Ваша норма в день</h2>
-          </motion.div>
-
-          <AnimatePresence>
-            {calories && protein && fat && carbs && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white rounded-2xl shadow-xl p-6 md:p-8 space-y-6"
-              >
-                <div className="grid grid-cols-2 gap-4">
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="p-5 bg-green-50 rounded-xl border-2 border-green-200"
-                  >
-                    <div className="text-sm text-gray-600 mb-1">Калории</div>
-                    <div className="text-3xl font-bold text-green-700">{calories}</div>
-                    <div className="text-xs text-gray-500 mt-1">ккал</div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="p-5 bg-blue-50 rounded-xl border-2 border-blue-200"
-                  >
-                    <div className="text-sm text-gray-600 mb-1">Белки</div>
-                    <div className="text-3xl font-bold text-blue-700">{protein}</div>
-                    <div className="text-xs text-gray-500 mt-1">г</div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="p-5 bg-orange-50 rounded-xl border-2 border-orange-200"
-                  >
-                    <div className="text-sm text-gray-600 mb-1">Жиры</div>
-                    <div className="text-3xl font-bold text-orange-700">{fat}</div>
-                    <div className="text-xs text-gray-500 mt-1">г</div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.6 }}
-                    className="p-5 bg-purple-50 rounded-xl border-2 border-purple-200"
-                  >
-                    <div className="text-sm text-gray-600 mb-1">Углеводы</div>
-                    <div className="text-3xl font-bold text-purple-700">{carbs}</div>
-                    <div className="text-xs text-gray-500 mt-1">г</div>
-                  </motion.div>
-                </div>
-
-                {loading && (
-                  <div className="text-center text-gray-500 text-sm py-2">
-                    Сохранение...
-                  </div>
-                )}
-
-                {error && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                    {error}
-                  </div>
-                )}
-
-                {saved && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm text-center"
-                  >
-                    ✅ Данные сохранены
-                  </motion.div>
-                )}
-
-                <motion.button
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleBackToBot}
-                  className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors"
-                >
-                  Вернуться в бота
-                </motion.button>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
     );
   }
 
-  // Шаги вопросов (2-6)
+  const totalSteps = 5;
+  const progress = step === 0 ? 0 : (step / totalSteps) * 100;
+
+  // Экран 0: Приветствие
+  if (step === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+          <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider">
+            ТВОЙ ДНЕВНИК ПИТАНИЯ
+          </p>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2 text-gray-800 leading-tight">
+            Считаем, сколько калорий нужно в день
+          </h1>
+          <p className="text-gray-600 mb-8">
+            Просто ответьте на пару вопросов
+          </p>
+          <button
+            onClick={handleNext}
+            className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg"
+          >
+            Начать!
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Экран 6: Результаты
+  if (step === 6) {
+    return (
+      <div className="min-h-screen bg-background p-4 py-8">
+        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
+          <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider">
+            ТВОЙ ДНЕВНИК ПИТАНИЯ
+          </p>
+          <h2 className="text-2xl font-bold mb-6 text-gray-800">
+            Считаем, сколько калорий нужно в день
+          </h2>
+
+          <div className="flex items-center gap-2 mb-8">
+            <span className="text-2xl">🥗</span>
+            <span className="text-lg font-medium text-gray-800">Твоя норма в день</span>
+          </div>
+
+          {calories && protein && fat && carbs && (
+            <div className="space-y-4 mb-8">
+              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xl">🔥</span>
+                  <span className="text-sm text-gray-600">Калории</span>
+                </div>
+                <div className="text-3xl font-bold text-gray-800">{calories} <span className="text-lg text-gray-500">ккал</span></div>
+              </div>
+
+              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xl">🥚</span>
+                  <span className="text-sm text-gray-600">Белки</span>
+                </div>
+                <div className="text-3xl font-bold text-gray-800">{protein} <span className="text-lg text-gray-500">г</span></div>
+              </div>
+
+              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xl">🥥</span>
+                  <span className="text-sm text-gray-600">Жиры</span>
+                </div>
+                <div className="text-3xl font-bold text-gray-800">{fat} <span className="text-lg text-gray-500">г</span></div>
+              </div>
+
+              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-xl">🍚</span>
+                  <span className="text-sm text-gray-600">Углеводы</span>
+                </div>
+                <div className="text-3xl font-bold text-gray-800">{carbs} <span className="text-lg text-gray-500">г</span></div>
+              </div>
+            </div>
+          )}
+
+          {loading && (
+            <div className="text-center text-gray-500 text-sm py-2 mb-4">
+              Сохранение...
+            </div>
+          )}
+
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
+              {error}
+            </div>
+          )}
+
+          {saved && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm mb-4 text-center">
+              ✅ Данные сохранены
+            </div>
+          )}
+
+          <button
+            onClick={handleBackToBot}
+            className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors"
+          >
+            Вернуться в бота
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Шаги вопросов
   const steps = [
     {
       step: 1,
-      title: "Выберите пол",
+      title: "Выберите свой пол",
+      icon: "👥",
       content: (
-        <div className="space-y-4">
-          <motion.button
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+        <div className="space-y-3">
+          <button
             onClick={() => setGender("male")}
-            className={`w-full text-left p-5 rounded-xl border-2 transition-all ${
+            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               gender === "male"
                 ? "border-green-500 bg-green-50"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
-            <span className="text-2xl mr-3">👨</span>
-            <span className="text-lg font-semibold text-gray-800">Мужской</span>
-          </motion.button>
-          <motion.button
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            <span className="text-xl mr-3">👨</span>
+            <span className="text-base font-medium text-gray-800">Мужчина</span>
+          </button>
+          <button
             onClick={() => setGender("female")}
-            className={`w-full text-left p-5 rounded-xl border-2 transition-all ${
+            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               gender === "female"
                 ? "border-green-500 bg-green-50"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
-            <span className="text-2xl mr-3">👩</span>
-            <span className="text-lg font-semibold text-gray-800">Женский</span>
-          </motion.button>
+            <span className="text-xl mr-3">👩</span>
+            <span className="text-base font-medium text-gray-800">Женщина</span>
+          </button>
         </div>
-      )
+      ),
+      canProceed: !!gender
     },
     {
       step: 2,
-      title: "Сколько вам лет?",
+      title: "Сколько тебе лет?",
+      icon: "🎂",
       content: (
-        <motion.input
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
+        <input
           type="number"
           value={age}
           onChange={(e) => setAge(e.target.value)}
-          placeholder="27"
+          placeholder="Например, 28"
           min="1"
           max="120"
-          autoFocus
-          className="w-full px-6 py-5 text-2xl font-semibold text-center border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
+          className="w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
         />
-      )
+      ),
+      canProceed: !!age && Number(age) > 0
     },
     {
       step: 3,
-      title: "Сколько вы весите?",
+      title: "Сколько ты весишь?",
+      icon: "⚖️",
       content: (
-        <motion.input
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          type="number"
-          value={weight}
-          onChange={(e) => setWeight(e.target.value)}
-          placeholder="93"
-          min="1"
-          step="0.1"
-          autoFocus
-          className="w-full px-6 py-5 text-2xl font-semibold text-center border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
-        />
-      )
+        <div className="relative">
+          <input
+            type="number"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder="Например, 82"
+            min="1"
+            step="0.1"
+            className="w-full px-4 py-3 pr-12 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">КГ</span>
+        </div>
+      ),
+      canProceed: !!weight && Number(weight) > 0
     },
     {
       step: 4,
-      title: "Какой у вас рост?",
+      title: "Какой у тебя рост?",
+      icon: "📏",
       content: (
-        <motion.input
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          type="number"
-          value={height}
-          onChange={(e) => setHeight(e.target.value)}
-          placeholder="183"
-          min="1"
-          autoFocus
-          className="w-full px-6 py-5 text-2xl font-semibold text-center border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
-        />
-      )
+        <div className="relative">
+          <input
+            type="number"
+            value={height}
+            onChange={(e) => setHeight(e.target.value)}
+            placeholder="Например, 180"
+            min="1"
+            className="w-full px-4 py-3 pr-12 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">см</span>
+        </div>
+      ),
+      canProceed: !!height && Number(height) > 0
     },
     {
       step: 5,
-      title: "Какая у вас цель?",
+      title: "Какая цель по весу?",
+      icon: "🎯",
       content: (
-        <div className="space-y-4">
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+        <div className="space-y-3">
+          <button
             onClick={() => setGoal("lose")}
-            className={`w-full text-left p-5 rounded-xl border-2 transition-all ${
+            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               goal === "lose"
                 ? "border-green-500 bg-green-50"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
-            <span className="text-2xl mr-3">🔥</span>
-            <span className="text-lg font-semibold text-gray-800">Похудеть</span>
-          </motion.button>
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setGoal("gain")}
-            className={`w-full text-left p-5 rounded-xl border-2 transition-all ${
-              goal === "gain"
-                ? "border-green-500 bg-green-50"
-                : "border-gray-200 hover:border-gray-300"
-            }`}
-          >
-            <span className="text-2xl mr-3">💪</span>
-            <span className="text-lg font-semibold text-gray-800">Набрать</span>
-          </motion.button>
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            <span className="text-xl mr-3">📉</span>
+            <span className="text-base font-medium text-gray-800">Похудеть</span>
+          </button>
+          <button
             onClick={() => setGoal("maintain")}
-            className={`w-full text-left p-5 rounded-xl border-2 transition-all ${
+            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               goal === "maintain"
                 ? "border-green-500 bg-green-50"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
-            <span className="text-2xl mr-3">👌</span>
-            <span className="text-lg font-semibold text-gray-800">Поддерживать</span>
-          </motion.button>
+            <span className="text-xl mr-3">⚖️</span>
+            <span className="text-base font-medium text-gray-800">Поддерживать</span>
+          </button>
+          <button
+            onClick={() => setGoal("gain")}
+            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+              goal === "gain"
+                ? "border-green-500 bg-green-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <span className="text-xl mr-3">📈</span>
+            <span className="text-base font-medium text-gray-800">Набрать</span>
+          </button>
         </div>
-      )
+      ),
+      canProceed: !!goal
     }
   ];
 
   const currentStepData = steps[step - 1];
-  const totalSteps = 5;
 
   return (
     <div className="min-h-screen bg-background p-4 py-8">
-      <div className="max-w-xl mx-auto">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white rounded-2xl shadow-xl p-6 md:p-8"
-          >
-            <h2 className="text-2xl md:text-3xl font-bold mb-8 text-gray-800 text-center">
-              {currentStepData.title}
-            </h2>
+      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
+        <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider">
+          ТВОЙ ДНЕВНИК ПИТАНИЯ
+        </p>
+        <h2 className="text-2xl font-bold mb-4 text-gray-800">
+          Считаем, сколько калорий нужно в день
+        </h2>
 
-            <div className="mb-8">
-              {currentStepData.content}
-            </div>
-          </motion.div>
-        </AnimatePresence>
+        {/* Прогресс-бар */}
+        <div className="mb-6">
+          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+            <div
+              className="h-full bg-green-500 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Вопрос */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-2xl">{currentStepData.icon}</span>
+            <h3 className="text-lg font-medium text-gray-800">{currentStepData.title}</h3>
+          </div>
+          {currentStepData.content}
+        </div>
+
+        {/* Кнопка Далее */}
+        <button
+          onClick={handleNext}
+          disabled={!currentStepData.canProceed}
+          className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4 flex items-center justify-center gap-2"
+        >
+          Далее
+          <span>→</span>
+        </button>
+
+        {/* Ссылка назад */}
+        {step > 1 && (
+          <button
+            onClick={handleBack}
+            className="w-full text-center text-gray-400 text-sm hover:text-gray-600 transition-colors"
+          >
+            ← Вернуться на шаг назад
+          </button>
+        )}
       </div>
     </div>
   );
