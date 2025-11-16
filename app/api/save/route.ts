@@ -54,6 +54,9 @@ export async function POST(req: Request) {
     carbs
   });
 
+  // ВАЖНО: Только UPDATE, никаких INSERT/UPSERT!
+  // Форма НИКОГДА не должна создавать новые строки в users.
+  // Бот создаёт строку при /start, форма только обновляет существующую.
   const { data, error } = await supabase
     .from("users")
     .update({
@@ -73,13 +76,19 @@ export async function POST(req: Request) {
 
   if (error) {
     console.error("[/api/save] supabase error:", error);
+    // Если ошибка связана с telegram_id - это значит кто-то пытается создать строку
+    // Этого не должно происходить, так как мы делаем только UPDATE
+    if (error.message?.includes("telegram_id")) {
+      console.error("[/api/save] КРИТИЧЕСКАЯ ОШИБКА: Попытка создать строку без telegram_id!");
+    }
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
   if (!data || data.length === 0) {
     console.error("[/api/save] Не найден пользователь с id:", numericId);
+    // НИ В КОЕМ СЛУЧАЕ не создаём новую строку!
     return NextResponse.json(
-      { ok: false, error: "Пользователь с таким id не найден" },
+      { ok: false, error: "Пользователь с таким id не найден. Запустите /start в боте" },
       { status: 404 }
     );
   }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Nunito } from "next/font/google";
 import type { ReactNode } from "react";
@@ -14,11 +14,14 @@ export const metadata: Metadata = {
   title: "Мой путь к балансу",
   description: "Нежное приложение, которое помогает рассчитать калорийность и макроэлементы на каждый день.",
   manifest: "/manifest.json",
-  themeColor: "#F7F5F2",
   icons: [
     { rel: "icon", url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
     { rel: "apple-touch-icon", url: "/icons/icon-192.png" }
   ]
+};
+
+export const viewport: Viewport = {
+  themeColor: "#F7F5F2"
 };
 
 export default function RootLayout({
