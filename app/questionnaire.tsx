@@ -190,6 +190,24 @@ export function QuestionnaireFormContent() {
     }
   };
 
+  const handleRestart = () => {
+    // Сбрасываем все данные
+    setStep(0);
+    setGender("");
+    setAge("");
+    setWeight("");
+    setHeight("");
+    setActivity("");
+    setGoal("");
+    setCalories(null);
+    setProtein(null);
+    setFat(null);
+    setCarbs(null);
+    setSaved(false);
+    setError(null);
+    setLoading(false);
+  };
+
   if (error && !userId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -302,45 +320,38 @@ export function QuestionnaireFormContent() {
           )}
 
           {!saved && (
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-            >
-              {loading ? "Сохранение..." : "Сохранить данные"}
-            </button>
+            <>
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-3"
+              >
+                {loading ? "Сохранение..." : "Сохранить данные"}
+              </button>
+              <button
+                onClick={handleBackToBot}
+                className="w-full py-3 px-6 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
+              >
+                Вернуться в бота
+              </button>
+            </>
           )}
 
-          <button
-            onClick={() => {
-              // Сброс всех данных и возврат к началу
-              setStep(0);
-              setGender("");
-              setAge("");
-              setWeight("");
-              setHeight("");
-              setActivity("");
-              setGoal("");
-              setCalories(null);
-              setProtein(null);
-              setFat(null);
-              setCarbs(null);
-              setSaved(false);
-              setError(null);
-              setLoading(false);
-            }}
-            className="w-full py-4 px-6 bg-gray-200 text-gray-700 font-semibold rounded-xl shadow-lg hover:bg-gray-300 transition-colors mb-4"
-          >
-            Пройти тест заново
-          </button>
-
           {saved && (
-            <button
-              onClick={handleBackToBot}
-              className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors"
-            >
-              Вернуться в бота
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={handleRestart}
+                className="w-full py-4 px-6 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Пройти тест заново
+              </button>
+              <button
+                onClick={handleBackToBot}
+                className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors"
+              >
+                Вернуться в бота
+              </button>
+            </div>
           )}
         </div>
       </div>
