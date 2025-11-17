@@ -22,11 +22,24 @@ const openaiApiKey = process.env.OPENAI_API_KEY!;
 if (!token || !supabaseUrl || !supabaseKey || !openaiApiKey) {
   console.error("❌ Ошибка: переменные окружения не загружены!");
   console.log({
-    TELEGRAM_BOT_TOKEN: token,
-    SUPABASE_URL: supabaseUrl,
-    SUPABASE_SERVICE_ROLE_KEY: supabaseKey,
+    TELEGRAM_BOT_TOKEN: token ? "✅" : "❌",
+    SUPABASE_URL: supabaseUrl ? "✅" : "❌",
+    SUPABASE_SERVICE_ROLE_KEY: supabaseKey ? "✅" : "❌",
     OPENAI_API_KEY: openaiApiKey ? "✅" : "❌"
   });
+  
+  if (!openaiApiKey || openaiApiKey === "sk-your-openai-api-key-here") {
+    console.error("\n⚠️  ВНИМАНИЕ: OPENAI_API_KEY не настроен!");
+    console.error("   Добавьте ваш OpenAI API ключ в файл bot/.env");
+    console.error("   Получить ключ: https://platform.openai.com/api-keys\n");
+  }
+  
+  process.exit(1);
+}
+
+// Проверяем, что API ключ не заглушка
+if (openaiApiKey === "sk-your-openai-api-key-here") {
+  console.error("❌ OPENAI_API_KEY содержит заглушку! Замените на реальный ключ в bot/.env");
   process.exit(1);
 }
 
@@ -129,6 +142,8 @@ interface MealAnalysis {
 
 async function analyzeFoodWithOpenAI(userInput: string): Promise<MealAnalysis | null> {
   try {
+    console.log(`[OpenAI] Начинаю анализ: "${userInput}"`);
+    
     const prompt = `Ты — эксперт по питанию. Проанализируй описание еды и верни ТОЛЬКО JSON в следующем формате:
 {
   "description": "краткое название блюда на русском",
@@ -142,38 +157,84 @@ async function analyzeFoodWithOpenAI(userInput: string): Promise<MealAnalysis | 
 
 Если пользователь описал несколько блюд или порцию, оцени общее количество. Будь точным, но если точных данных нет — используй средние значения для подобных блюд.`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "Ты — помощник по анализу питания. Всегда возвращай валидный JSON без дополнительного текста."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.3
-    });
+    console.log("[OpenAI] Отправляю запрос к OpenAI (модель: gpt-4o)...");
+    let response;
+    try {
+      response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "Ты — помощник по анализу питания. Всегда возвращай валидный JSON без дополнительного текста."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3
+      });
+    } catch (modelError: any) {
+      // Если gpt-4o недоступна, пробуем gpt-4o-mini
+      if (modelError?.code === "model_not_found" || modelError?.message?.includes("gpt-4o")) {
+        console.log("[OpenAI] gpt-4o недоступна, пробую gpt-4o-mini...");
+        response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "Ты — помощник по анализу питания. Всегда возвращай валидный JSON без дополнительного текста."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.3
+        });
+      } else {
+        throw modelError;
+      }
+    }
 
+    console.log("[OpenAI] Получен ответ от OpenAI");
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      console.error("[OpenAI] Пустой ответ");
+      console.error("[OpenAI] Пустой ответ от OpenAI");
       return null;
     }
 
-    const parsed = JSON.parse(content);
-    return {
+    console.log(`[OpenAI] Содержимое ответа: ${content.substring(0, 200)}...`);
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch (parseError) {
+      console.error("[OpenAI] Ошибка парсинга JSON:", parseError);
+      console.error("[OpenAI] Сырой ответ:", content);
+      return null;
+    }
+
+    const result = {
       description: parsed.description || userInput,
       calories: Number(parsed.calories) || 0,
       protein: Number(parsed.protein) || 0,
       fat: Number(parsed.fat) || 0,
       carbs: Number(parsed.carbs) || 0
     };
-  } catch (error) {
+
+    console.log(`[OpenAI] Успешно проанализировано:`, result);
+    return result;
+  } catch (error: any) {
     console.error("[OpenAI] Ошибка анализа:", error);
+    if (error?.message) {
+      console.error("[OpenAI] Детали ошибки:", error.message);
+    }
+    if (error?.response) {
+      console.error("[OpenAI] Ответ API:", error.response);
+    }
     return null;
   }
 }
