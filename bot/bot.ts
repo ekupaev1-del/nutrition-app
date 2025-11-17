@@ -287,7 +287,7 @@ async function getTodayMeals(telegram_id: number): Promise<{
 
     const { data, error } = await supabase
       .from("diary")
-      .select("calories, protein, fat")
+      .select("calories, protein, fat, carbs")
       .eq("user_id", telegram_id)
       .gte("created_at", todayISO);
 
@@ -301,7 +301,7 @@ async function getTodayMeals(telegram_id: number): Promise<{
         calories: acc.calories + Number(meal.calories || 0),
         protein: acc.protein + Number(meal.protein || 0),
         fat: acc.fat + Number(meal.fat || 0),
-        carbs: acc.carbs // carbs отсутствует в таблице diary, оставляем 0
+        carbs: acc.carbs + Number(meal.carbs || 0)
       }),
       { calories: 0, protein: 0, fat: 0, carbs: 0 }
     );
@@ -399,8 +399,8 @@ bot.on("text", async (ctx) => {
       meal_text: analysis.description,
       calories: analysis.calories,
       protein: analysis.protein,
-      fat: analysis.fat
-      // carbs и type могут отсутствовать в таблице diary
+      fat: analysis.fat,
+      carbs: analysis.carbs
     });
 
     if (insertError) {
@@ -508,7 +508,7 @@ bot.command("отчет", async (ctx) => {
 
     const { data: meals, error } = await supabase
       .from("diary")
-      .select("meal_text, calories, protein, fat, created_at")
+      .select("meal_text, calories, protein, fat, carbs, created_at")
       .eq("user_id", telegram_id)
       .gte("created_at", todayISO)
       .order("created_at", { ascending: true });
@@ -531,7 +531,7 @@ bot.command("отчет", async (ctx) => {
         hour: "2-digit",
         minute: "2-digit"
       });
-      report += `${index + 1}. ${meal.meal_text} (${time})\n   🔥 ${meal.calories} ккал | 🥚 ${Number(meal.protein).toFixed(1)}г | 🥥 ${Number(meal.fat).toFixed(1)}г\n\n`;
+      report += `${index + 1}. ${meal.meal_text} (${time})\n   🔥 ${meal.calories} ккал | 🥚 ${Number(meal.protein).toFixed(1)}г | 🥥 ${Number(meal.fat).toFixed(1)}г | 🍚 ${Number(meal.carbs || 0).toFixed(1)}г\n\n`;
     });
 
     report += `\n${formatProgressMessage(todayMeals, dailyNorm)}`;
@@ -691,7 +691,8 @@ bot.on("photo", async (ctx) => {
       meal_text: analysis.description,
       calories: analysis.calories,
       protein: analysis.protein,
-      fat: analysis.fat
+      fat: analysis.fat,
+      carbs: analysis.carbs
     });
 
     if (insertError) {
@@ -849,7 +850,8 @@ bot.on("voice", async (ctx) => {
       meal_text: analysis.description,
       calories: analysis.calories,
       protein: analysis.protein,
-      fat: analysis.fat
+      fat: analysis.fat,
+      carbs: analysis.carbs
     });
 
     if (insertError) {
