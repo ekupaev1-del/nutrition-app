@@ -244,53 +244,26 @@ export function QuestionnaireFormContent() {
   // Экран 0: Приветствие
   if (step === 0) {
     return (
-      <div className="min-h-screen bg-background">
-        {/* Верхняя навигация */}
-        <div className="flex items-center justify-between p-4 pb-2">
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: '#F6F3EF' }}>
+        <div className="max-w-md w-full bg-white rounded-[44px] shadow-lg p-8" style={{ paddingTop: '56px' }}>
+          <p className="text-xs uppercase text-gray-400 mb-6 tracking-[0.15em] font-light text-center">
+            ТВОЙ ДНЕВНИК ПИТАНИЯ
+          </p>
+          <h1 className="text-3xl md:text-4xl font-bold mb-4 text-gray-800 leading-tight text-center">
+            Считаем, сколько<br />
+            калорий нужно в<br />
+            день
+          </h1>
+          <p className="text-base text-gray-600 mb-10 text-center" style={{ fontSize: '16px' }}>
+            Просто ответьте на пару вопросов.
+          </p>
           <button
-            onClick={handleBackToBot}
-            className="w-8 h-8 flex items-center justify-center text-textPrimary hover:opacity-70 transition-opacity"
+            onClick={handleNext}
+            className="w-full py-4 px-6 text-white font-medium rounded-[50px] shadow-md hover:opacity-90 transition-opacity text-lg"
+            style={{ backgroundColor: '#A4C49A' }}
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
+            Начать!
           </button>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-gray-200 shadow-sm">
-            <div className="w-4 h-4 bg-orange-300 rounded flex items-center justify-center">
-              <span className="text-white text-xs font-bold">П</span>
-            </div>
-            <span className="text-sm text-textPrimary font-medium">питание</span>
-          </div>
-          <button className="w-8 h-8 flex items-center justify-center text-textPrimary hover:opacity-70 transition-opacity">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="10" cy="4" r="1.5" fill="currentColor"/>
-              <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
-              <circle cx="10" cy="16" r="1.5" fill="currentColor"/>
-            </svg>
-          </button>
-        </div>
-
-        {/* Основной контент */}
-        <div className="flex items-center justify-center px-4 pb-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-soft p-8">
-            <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider font-light">
-              ТВОЙ ДНЕВНИК ПИТАНИЯ
-            </p>
-            <h1 className="text-2xl md:text-3xl font-bold mb-2 text-textPrimary leading-tight">
-              Считаем, сколько<br />
-              калорий нужно в<br />
-              день
-            </h1>
-            <p className="text-textSecondary mb-8 text-sm">
-              Просто ответьте на пару вопросов.
-            </p>
-            <button
-              onClick={handleNext}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity text-lg"
-            >
-              Начать!
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -301,6 +274,9 @@ export function QuestionnaireFormContent() {
     return (
       <div className="min-h-screen bg-background p-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
+          <h2 className="text-xl font-semibold mb-6 text-textPrimary text-center">
+            Ваша норма на день
+          </h2>
           {calories && protein && fat && carbs && (
             <div className="grid grid-cols-2 gap-4 mb-8">
               {/* Калории */}
