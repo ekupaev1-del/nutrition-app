@@ -300,7 +300,7 @@ async function getTodayMeals(telegram_id: number): Promise<{
         calories: acc.calories + Number(meal.calories || 0),
         protein: acc.protein + Number(meal.protein || 0),
         fat: acc.fat + Number(meal.fat || 0),
-        carbs: acc.carbs + 0 // carbs может отсутствовать в таблице diary
+        carbs: acc.carbs // carbs отсутствует в таблице diary, оставляем 0
       }),
       { calories: 0, protein: 0, fat: 0, carbs: 0 }
     );
