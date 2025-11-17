@@ -365,6 +365,33 @@ bot.on("text", async (ctx) => {
       return;
     }
 
+    // Убеждаемся, что пользователь существует в таблице users
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("telegram_id", telegram_id)
+      .maybeSingle();
+
+    if (!existingUser) {
+      // Создаём пользователя, если его нет
+      const { data: newUser, error: createError } = await supabase
+        .from("users")
+        .upsert({ telegram_id }, { onConflict: "telegram_id", ignoreDuplicates: false })
+        .select("id")
+        .single();
+
+      if (createError || !newUser) {
+        console.error("[bot] Ошибка создания пользователя:", createError);
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id,
+          processingMsg.message_id,
+          undefined,
+          "❌ Ошибка: пользователь не найден. Используйте /start для регистрации."
+        );
+        return;
+      }
+    }
+
     // Сохраняем в базу
     const { error: insertError } = await supabase.from("diary").insert({
       user_id: telegram_id,
