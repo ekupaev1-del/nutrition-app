@@ -191,30 +191,48 @@ export function QuestionnaireFormContent() {
   };
 
   const handleRestart = () => {
-    // Сбрасываем все данные
-    setStep(0);
-    setGender("");
-    setAge("");
-    setWeight("");
-    setHeight("");
-    setActivity("");
-    setGoal("");
-    setCalories(null);
-    setProtein(null);
-    setFat(null);
-    setCarbs(null);
-    setSaved(false);
-    setError(null);
-    setLoading(false);
+    // Сбрасываем все данные, но не сохраняем флаг saved
+    // Пользователь должен сохранить данные перед повторным прохождением
+    if (saved) {
+      setStep(0);
+      setGender("");
+      setAge("");
+      setWeight("");
+      setHeight("");
+      setActivity("");
+      setGoal("");
+      setCalories(null);
+      setProtein(null);
+      setFat(null);
+      setCarbs(null);
+      setSaved(false);
+      setError(null);
+      setLoading(false);
+    } else {
+      // Если данные не сохранены, просто возвращаемся к началу
+      setStep(0);
+      setGender("");
+      setAge("");
+      setWeight("");
+      setHeight("");
+      setActivity("");
+      setGoal("");
+      setCalories(null);
+      setProtein(null);
+      setFat(null);
+      setCarbs(null);
+      setError(null);
+      setLoading(false);
+    }
   };
 
   if (error && !userId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 text-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-soft p-6 text-center">
           <h2 className="text-xl font-semibold mb-2 text-red-600">Ошибка</h2>
-          <p className="text-gray-700">{error}</p>
-          <p className="text-sm text-gray-500 mt-4">Запустите анкету через Telegram бота</p>
+          <p className="text-textPrimary">{error}</p>
+          <p className="text-sm text-textSecondary mt-4">Запустите анкету через Telegram бота</p>
         </div>
       </div>
     );
@@ -227,19 +245,21 @@ export function QuestionnaireFormContent() {
   if (step === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-          <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-soft p-8">
+          <p className="text-xs uppercase text-textSecondary mb-4 tracking-wider font-light">
             ТВОЙ ДНЕВНИК ПИТАНИЯ
           </p>
-          <h1 className="text-2xl md:text-3xl font-bold mb-2 text-gray-800 leading-tight">
-            Считаем, сколько калорий нужно в день
+          <h1 className="text-2xl md:text-3xl font-bold mb-2 text-textPrimary leading-tight">
+            Считаем, сколько<br />
+            калорий нужно в<br />
+            день
           </h1>
-          <p className="text-gray-600 mb-8">
-            Просто ответьте на пару вопросов
+          <p className="text-textSecondary mb-8 text-sm">
+            Просто ответьте на пару вопросов.
           </p>
           <button
             onClick={handleNext}
-            className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors text-lg"
+            className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity text-lg"
           >
             Начать!
           </button>
@@ -252,57 +272,49 @@ export function QuestionnaireFormContent() {
   if (step === 7) {
     return (
       <div className="min-h-screen bg-background p-4 py-8">
-        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
-          <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider">
-            ТВОЙ ДНЕВНИК ПИТАНИЯ
-          </p>
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">
-            Считаем, сколько калорий нужно в день
-          </h2>
-
-          <div className="flex items-center gap-2 mb-8">
-            <span className="text-2xl">🥗</span>
-            <span className="text-lg font-medium text-gray-800">Твоя норма в день</span>
-          </div>
-
+        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
           {calories && protein && fat && carbs && (
-            <div className="space-y-4 mb-8">
-              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-xl">🔥</span>
-                  <span className="text-sm text-gray-600">Калории</span>
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              {/* Калории */}
+              <div className="p-5 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🔥</span>
+                  <span className="text-xs text-textSecondary">Калории</span>
                 </div>
-                <div className="text-3xl font-bold text-gray-800">{calories} <span className="text-lg text-gray-500">ккал</span></div>
+                <div className="text-2xl font-bold text-textPrimary">{calories} <span className="text-sm font-normal text-textSecondary">ккал</span></div>
               </div>
 
-              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-xl">🥚</span>
-                  <span className="text-sm text-gray-600">Белки</span>
+              {/* Белки */}
+              <div className="p-5 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🥚</span>
+                  <span className="text-xs text-textSecondary">Белки</span>
                 </div>
-                <div className="text-3xl font-bold text-gray-800">{protein} <span className="text-lg text-gray-500">г</span></div>
+                <div className="text-2xl font-bold text-textPrimary">{protein} <span className="text-sm font-normal text-textSecondary">г</span></div>
               </div>
 
-              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-xl">🥥</span>
-                  <span className="text-sm text-gray-600">Жиры</span>
+              {/* Жиры */}
+              <div className="p-5 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🥥</span>
+                  <span className="text-xs text-textSecondary">Жиры</span>
                 </div>
-                <div className="text-3xl font-bold text-gray-800">{fat} <span className="text-lg text-gray-500">г</span></div>
+                <div className="text-2xl font-bold text-textPrimary">{fat} <span className="text-sm font-normal text-textSecondary">г</span></div>
               </div>
 
-              <div className="p-5 bg-white rounded-xl border-2 border-gray-100">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-xl">🍚</span>
-                  <span className="text-sm text-gray-600">Углеводы</span>
+              {/* Углеводы */}
+              <div className="p-5 bg-white rounded-xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🍚</span>
+                  <span className="text-xs text-textSecondary">Углеводы</span>
                 </div>
-                <div className="text-3xl font-bold text-gray-800">{carbs} <span className="text-lg text-gray-500">г</span></div>
+                <div className="text-2xl font-bold text-textPrimary">{carbs} <span className="text-sm font-normal text-textSecondary">г</span></div>
               </div>
             </div>
           )}
 
           {loading && (
-            <div className="text-center text-gray-500 text-sm py-2 mb-4">
+            <div className="text-center text-textSecondary text-sm py-2 mb-4">
               Сохранение...
             </div>
           )}
@@ -314,42 +326,36 @@ export function QuestionnaireFormContent() {
           )}
 
           {saved && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm mb-4 text-center">
+            <div className="p-4 bg-accent/10 border border-accent/20 rounded-lg text-accent text-sm mb-4 text-center">
               ✅ Данные сохранены
             </div>
           )}
 
           {!saved && (
-            <>
+            <div className="space-y-3">
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-3"
+                className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Сохранение..." : "Сохранить данные"}
               </button>
               <button
-                onClick={handleBackToBot}
-                className="w-full py-3 px-6 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
+                onClick={handleRestart}
+                className="w-full py-4 px-6 bg-gray-100 text-textPrimary font-medium rounded-xl hover:bg-gray-200 transition-colors"
               >
-                Вернуться в бота
+                Пройти тест заново
               </button>
-            </>
+            </div>
           )}
 
           {saved && (
             <div className="space-y-3">
               <button
                 onClick={handleRestart}
-                className="w-full py-4 px-6 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+                className="w-full py-4 px-6 bg-gray-100 text-textPrimary font-semibold rounded-xl hover:bg-gray-200 transition-colors"
               >
                 Пройти тест заново
-              </button>
-              <button
-                onClick={handleBackToBot}
-                className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors"
-              >
-                Вернуться в бота
               </button>
             </div>
           )}
@@ -370,23 +376,23 @@ export function QuestionnaireFormContent() {
             onClick={() => setGender("male")}
             className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               gender === "male"
-                ? "border-green-500 bg-green-50"
+                ? "border-accent bg-accent/10"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
             <span className="text-xl mr-3">👨</span>
-            <span className="text-base font-medium text-gray-800">Мужчина</span>
+            <span className="text-base font-medium text-textPrimary">Мужчина</span>
           </button>
           <button
             onClick={() => setGender("female")}
             className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               gender === "female"
-                ? "border-green-500 bg-green-50"
+                ? "border-accent bg-accent/10"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
             <span className="text-xl mr-3">👩</span>
-            <span className="text-base font-medium text-gray-800">Женщина</span>
+            <span className="text-base font-medium text-textPrimary">Женщина</span>
           </button>
         </div>
       ),
@@ -404,7 +410,7 @@ export function QuestionnaireFormContent() {
           placeholder="Например, 28"
           min="1"
           max="120"
-          className="w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
+          className="w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary placeholder:text-textSecondary"
         />
       ),
       canProceed: !!age && Number(age) > 0
@@ -422,9 +428,9 @@ export function QuestionnaireFormContent() {
             placeholder="Например, 82"
             min="1"
             step="0.1"
-            className="w-full px-4 py-3 pr-12 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
+            className="w-full px-4 py-3 pr-12 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary placeholder:text-textSecondary"
           />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">КГ</span>
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-textSecondary text-sm">КГ</span>
         </div>
       ),
       canProceed: !!weight && Number(weight) > 0
@@ -441,9 +447,9 @@ export function QuestionnaireFormContent() {
             onChange={(e) => setHeight(e.target.value)}
             placeholder="Например, 180"
             min="1"
-            className="w-full px-4 py-3 pr-12 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 transition-colors bg-white text-gray-800 placeholder:text-gray-400"
+            className="w-full px-4 py-3 pr-12 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary placeholder:text-textSecondary"
           />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">см</span>
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-textSecondary text-sm">см</span>
         </div>
       ),
       canProceed: !!height && Number(height) > 0
@@ -454,62 +460,62 @@ export function QuestionnaireFormContent() {
       icon: "🏃",
       content: (
         <div>
-          <p className="text-sm text-gray-500 mb-4">Это помогает учесть тренировочные нагрузки.</p>
+          <p className="text-sm text-textSecondary mb-4">Это помогает учесть тренировочные нагрузки.</p>
           <div className="space-y-3">
             <button
               onClick={() => setActivity("sedentary")}
               className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                 activity === "sedentary"
-                  ? "border-green-500 bg-green-50"
+                  ? "border-accent bg-accent/10"
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
               <span className="text-xl mr-3">🪑</span>
-              <span className="text-base font-medium text-gray-800">Сидячая работа</span>
+              <span className="text-base font-medium text-textPrimary">Сидячая работа</span>
             </button>
             <button
               onClick={() => setActivity("light")}
               className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                 activity === "light"
-                  ? "border-green-500 bg-green-50"
+                  ? "border-accent bg-accent/10"
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
               <span className="text-xl mr-3">🚶</span>
-              <span className="text-base font-medium text-gray-800">1-2 тренировки в неделю</span>
+              <span className="text-base font-medium text-textPrimary">1-2 тренировки в неделю</span>
             </button>
             <button
               onClick={() => setActivity("moderate")}
               className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                 activity === "moderate"
-                  ? "border-green-500 bg-green-50"
+                  ? "border-accent bg-accent/10"
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
               <span className="text-xl mr-3">🏃</span>
-              <span className="text-base font-medium text-gray-800">3-4 тренировки</span>
+              <span className="text-base font-medium text-textPrimary">3-4 тренировки</span>
             </button>
             <button
               onClick={() => setActivity("active")}
               className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                 activity === "active"
-                  ? "border-green-500 bg-green-50"
+                  ? "border-accent bg-accent/10"
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
               <span className="text-xl mr-3">💪</span>
-              <span className="text-base font-medium text-gray-800">5+ тренировок</span>
+              <span className="text-base font-medium text-textPrimary">5+ тренировок</span>
             </button>
             <button
               onClick={() => setActivity("very_active")}
               className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                 activity === "very_active"
-                  ? "border-green-500 bg-green-50"
+                  ? "border-accent bg-accent/10"
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
               <span className="text-xl mr-3">🔥</span>
-              <span className="text-base font-medium text-gray-800">Спорт ежедневно</span>
+              <span className="text-base font-medium text-textPrimary">Спорт ежедневно</span>
             </button>
           </div>
         </div>
@@ -526,34 +532,34 @@ export function QuestionnaireFormContent() {
             onClick={() => setGoal("lose")}
             className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               goal === "lose"
-                ? "border-green-500 bg-green-50"
+                ? "border-accent bg-accent/10"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
             <span className="text-xl mr-3">📉</span>
-            <span className="text-base font-medium text-gray-800">Похудеть</span>
+            <span className="text-base font-medium text-textPrimary">Похудеть</span>
           </button>
           <button
             onClick={() => setGoal("maintain")}
             className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               goal === "maintain"
-                ? "border-green-500 bg-green-50"
+                ? "border-accent bg-accent/10"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
             <span className="text-xl mr-3">⚖️</span>
-            <span className="text-base font-medium text-gray-800">Поддерживать</span>
+            <span className="text-base font-medium text-textPrimary">Поддерживать</span>
           </button>
           <button
             onClick={() => setGoal("gain")}
             className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
               goal === "gain"
-                ? "border-green-500 bg-green-50"
+                ? "border-accent bg-accent/10"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
             <span className="text-xl mr-3">📈</span>
-            <span className="text-base font-medium text-gray-800">Набрать</span>
+            <span className="text-base font-medium text-textPrimary">Набрать</span>
           </button>
         </div>
       ),
@@ -565,11 +571,11 @@ export function QuestionnaireFormContent() {
 
   return (
     <div className="min-h-screen bg-background p-4 py-8">
-      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8">
-        <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider">
+      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
+        <p className="text-xs uppercase text-textSecondary mb-4 tracking-wider font-light">
           ТВОЙ ДНЕВНИК ПИТАНИЯ
         </p>
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">
+        <h2 className="text-2xl font-bold mb-4 text-textPrimary">
           Считаем, сколько калорий нужно в день
         </h2>
 
@@ -577,7 +583,7 @@ export function QuestionnaireFormContent() {
         <div className="mb-6">
           <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
-              className="h-full bg-green-500 rounded-full transition-all duration-300"
+              className="h-full bg-accent rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -587,7 +593,7 @@ export function QuestionnaireFormContent() {
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-2xl">{currentStepData.icon}</span>
-            <h3 className="text-lg font-medium text-gray-800">{currentStepData.title}</h3>
+            <h3 className="text-lg font-medium text-textPrimary">{currentStepData.title}</h3>
           </div>
           {currentStepData.content}
         </div>
@@ -596,7 +602,7 @@ export function QuestionnaireFormContent() {
         <button
           onClick={handleNext}
           disabled={!currentStepData.canProceed}
-          className="w-full py-4 px-6 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4 flex items-center justify-center gap-2"
+          className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-4 flex items-center justify-center gap-2"
         >
           Далее
           <span>→</span>
@@ -606,7 +612,7 @@ export function QuestionnaireFormContent() {
         {step > 1 && (
           <button
             onClick={handleBack}
-            className="w-full text-center text-gray-400 text-sm hover:text-gray-600 transition-colors"
+            className="w-full text-center text-textSecondary text-sm hover:text-textPrimary transition-colors"
           >
             ← Вернуться на шаг назад
           </button>
