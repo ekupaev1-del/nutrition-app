@@ -213,10 +213,10 @@ async function getUserDailyNorm(telegram_id: number): Promise<{
 }
 
 async function getTodayMeals(telegram_id: number): Promise<{
-  totalCalories: number;
-  totalProtein: number;
-  totalFat: number;
-  totalCarbs: number;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
 }> {
   try {
     const today = new Date();
@@ -231,23 +231,23 @@ async function getTodayMeals(telegram_id: number): Promise<{
 
     if (error) {
       console.error("[getTodayMeals] Ошибка:", error);
-      return { totalCalories: 0, totalProtein: 0, totalFat: 0, totalCarbs: 0 };
+      return { calories: 0, protein: 0, fat: 0, carbs: 0 };
     }
 
     const totals = (data || []).reduce(
       (acc, meal) => ({
-        totalCalories: acc.totalCalories + Number(meal.calories || 0),
-        totalProtein: acc.totalProtein + Number(meal.protein || 0),
-        totalFat: acc.totalFat + Number(meal.fat || 0),
-        totalCarbs: acc.totalCarbs + Number(meal.carbs || 0)
+        calories: acc.calories + Number(meal.calories || 0),
+        protein: acc.protein + Number(meal.protein || 0),
+        fat: acc.fat + Number(meal.fat || 0),
+        carbs: acc.carbs + Number(meal.carbs || 0)
       }),
-      { totalCalories: 0, totalProtein: 0, totalFat: 0, totalCarbs: 0 }
+      { calories: 0, protein: 0, fat: 0, carbs: 0 }
     );
 
     return totals;
   } catch (error) {
     console.error("[getTodayMeals] Исключение:", error);
-    return { totalCalories: 0, totalProtein: 0, totalFat: 0, totalCarbs: 0 };
+    return { calories: 0, protein: 0, fat: 0, carbs: 0 };
   }
 }
 
