@@ -285,9 +285,9 @@ async function getTodayMeals(telegram_id: number): Promise<{
     const todayISO = today.toISOString();
 
     const { data, error } = await supabase
-      .from("meals")
-      .select("calories, protein, fat, carbs")
-      .eq("telegram_id", telegram_id)
+      .from("diary")
+      .select("calories, protein, fat")
+      .eq("user_id", telegram_id)
       .gte("created_at", todayISO);
 
     if (error) {
@@ -300,7 +300,7 @@ async function getTodayMeals(telegram_id: number): Promise<{
         calories: acc.calories + Number(meal.calories || 0),
         protein: acc.protein + Number(meal.protein || 0),
         fat: acc.fat + Number(meal.fat || 0),
-        carbs: acc.carbs + Number(meal.carbs || 0)
+        carbs: acc.carbs + 0 // carbs может отсутствовать в таблице diary
       }),
       { calories: 0, protein: 0, fat: 0, carbs: 0 }
     );
@@ -366,14 +366,13 @@ bot.on("text", async (ctx) => {
     }
 
     // Сохраняем в базу
-    const { error: insertError } = await supabase.from("meals").insert({
-      telegram_id,
-      description: analysis.description,
+    const { error: insertError } = await supabase.from("diary").insert({
+      user_id: telegram_id,
+      meal_text: analysis.description,
       calories: analysis.calories,
       protein: analysis.protein,
-      fat: analysis.fat,
-      carbs: analysis.carbs,
-      type: "text"
+      fat: analysis.fat
+      // carbs и type могут отсутствовать в таблице diary
     });
 
     if (insertError) {
@@ -423,9 +422,9 @@ bot.command("отменить", async (ctx) => {
     const todayISO = today.toISOString();
 
     const { data: lastMeal, error: selectError } = await supabase
-      .from("meals")
-      .select("id, description, calories")
-      .eq("telegram_id", telegram_id)
+      .from("diary")
+      .select("id, meal_text, calories")
+      .eq("user_id", telegram_id)
       .gte("created_at", todayISO)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -442,7 +441,7 @@ bot.command("отменить", async (ctx) => {
 
     // Удаляем
     const { error: deleteError } = await supabase
-      .from("meals")
+      .from("diary")
       .delete()
       .eq("id", lastMeal.id);
 
@@ -456,7 +455,7 @@ bot.command("отменить", async (ctx) => {
     const dailyNorm = await getUserDailyNorm(telegram_id);
 
     ctx.reply(
-      `✅ Удалено: ${lastMeal.description} (${lastMeal.calories} ккал)\n\n${formatProgressMessage(todayMeals, dailyNorm)}`
+      `✅ Удалено: ${lastMeal.meal_text} (${lastMeal.calories} ккал)\n\n${formatProgressMessage(todayMeals, dailyNorm)}`
     );
   } catch (error) {
     console.error("[bot] Ошибка /отменить:", error);
@@ -480,9 +479,9 @@ bot.command("отчет", async (ctx) => {
     const todayISO = today.toISOString();
 
     const { data: meals, error } = await supabase
-      .from("meals")
-      .select("description, calories, protein, fat, carbs, created_at")
-      .eq("telegram_id", telegram_id)
+      .from("diary")
+      .select("meal_text, calories, protein, fat, created_at")
+      .eq("user_id", telegram_id)
       .gte("created_at", todayISO)
       .order("created_at", { ascending: true });
 
@@ -504,7 +503,7 @@ bot.command("отчет", async (ctx) => {
         hour: "2-digit",
         minute: "2-digit"
       });
-      report += `${index + 1}. ${meal.description} (${time})\n   🔥 ${meal.calories} ккал | 🥚 ${Number(meal.protein).toFixed(1)}г | 🥥 ${Number(meal.fat).toFixed(1)}г | 🍚 ${Number(meal.carbs).toFixed(1)}г\n\n`;
+      report += `${index + 1}. ${meal.meal_text} (${time})\n   🔥 ${meal.calories} ккал | 🥚 ${Number(meal.protein).toFixed(1)}г | 🥥 ${Number(meal.fat).toFixed(1)}г\n\n`;
     });
 
     report += `\n${formatProgressMessage(todayMeals, dailyNorm)}`;
