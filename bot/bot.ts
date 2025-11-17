@@ -295,7 +295,7 @@ async function getTodayMeals(telegram_id: number): Promise<{
       return { calories: 0, protein: 0, fat: 0, carbs: 0 };
     }
 
-    const totals = (data || []).reduce(
+    const totals: { calories: number; protein: number; fat: number; carbs: number } = (data || []).reduce<{ calories: number; protein: number; fat: number; carbs: number }>(
       (acc, meal) => ({
         calories: acc.calories + Number(meal.calories || 0),
         protein: acc.protein + Number(meal.protein || 0),
