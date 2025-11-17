@@ -244,25 +244,53 @@ export function QuestionnaireFormContent() {
   // Экран 0: Приветствие
   if (step === 0) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-soft p-8">
-          <p className="text-xs uppercase text-textSecondary mb-4 tracking-wider font-light">
-            ТВОЙ ДНЕВНИК ПИТАНИЯ
-          </p>
-          <h1 className="text-2xl md:text-3xl font-bold mb-2 text-textPrimary leading-tight">
-            Считаем, сколько<br />
-            калорий нужно в<br />
-            день
-          </h1>
-          <p className="text-textSecondary mb-8 text-sm">
-            Просто ответьте на пару вопросов.
-          </p>
+      <div className="min-h-screen bg-background">
+        {/* Верхняя навигация */}
+        <div className="flex items-center justify-between p-4 pb-2">
           <button
-            onClick={handleNext}
-            className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity text-lg"
+            onClick={handleBackToBot}
+            className="w-8 h-8 flex items-center justify-center text-textPrimary hover:opacity-70 transition-opacity"
           >
-            Начать!
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
           </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-gray-200 shadow-sm">
+            <div className="w-4 h-4 bg-orange-300 rounded flex items-center justify-center">
+              <span className="text-white text-xs font-bold">П</span>
+            </div>
+            <span className="text-sm text-textPrimary font-medium">питание</span>
+          </div>
+          <button className="w-8 h-8 flex items-center justify-center text-textPrimary hover:opacity-70 transition-opacity">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="10" cy="4" r="1.5" fill="currentColor"/>
+              <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
+              <circle cx="10" cy="16" r="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Основной контент */}
+        <div className="flex items-center justify-center px-4 pb-4">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-soft p-8">
+            <p className="text-xs uppercase text-gray-400 mb-4 tracking-wider font-light">
+              ТВОЙ ДНЕВНИК ПИТАНИЯ
+            </p>
+            <h1 className="text-2xl md:text-3xl font-bold mb-2 text-textPrimary leading-tight">
+              Считаем, сколько<br />
+              калорий нужно в<br />
+              день
+            </h1>
+            <p className="text-textSecondary mb-8 text-sm">
+              Просто ответьте на пару вопросов.
+            </p>
+            <button
+              onClick={handleNext}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity text-lg"
+            >
+              Начать!
+            </button>
+          </div>
         </div>
       </div>
     );
