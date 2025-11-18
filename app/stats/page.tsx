@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import StatsPageContent from "../stats";
+import StatsPageContent from "../../stats";
 
 export const dynamic = 'force-dynamic';
 

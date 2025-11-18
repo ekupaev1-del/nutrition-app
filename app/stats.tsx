@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import "./globals.css";
 
-export default function StatsPage() {
+export default function StatsPageContent() {
   const searchParams = useSearchParams();
   const userIdParam = searchParams.get("id");
   const [userId, setUserId] = useState<number | null>(null);
