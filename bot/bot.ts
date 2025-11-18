@@ -108,17 +108,24 @@ bot.start(async (ctx) => {
     const url = `https://nutrition-app4.vercel.app/?id=${userId}`;
     console.log(`[bot] Ссылка на анкету: ${url}`);
 
-    // Отправляем кнопку Mini App
-    await ctx.reply("Нажми кнопку, чтобы пройти анкету 👇", {
+    // Отправляем главное меню
+    await ctx.reply("Добро пожаловать! Выберите действие:", {
       reply_markup: {
-        inline_keyboard: [
+        keyboard: [
           [
-            {
-              text: "Заполнить анкету",
-              web_app: { url }
-            }
+            { text: "📊 Статистика" },
+            { text: "✏️ Обновить данные" }
+          ],
+          [
+            { text: "📋 Отчет за сегодня" },
+            { text: "❌ Отменить последнее" }
+          ],
+          [
+            { text: "💡 Рекомендации" }
           ]
-        ]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false
       }
     });
 
@@ -398,6 +405,249 @@ bot.on("text", async (ctx) => {
 
     // Игнорируем команды
     if (text.startsWith("/")) {
+      return;
+    }
+
+    // Обработка кнопок меню
+    if (text === "📊 Статистика") {
+      // Получаем userId для Mini App
+      const { data: user } = await supabase
+        .from("users")
+        .select("id")
+        .eq("telegram_id", telegram_id)
+        .maybeSingle();
+
+      if (!user) {
+        return ctx.reply("❌ Пользователь не найден. Используйте /start для регистрации.");
+      }
+
+      const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
+      return ctx.reply("Открываю статистику...", {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "📊 Открыть статистику",
+                web_app: { url: statsUrl }
+              }
+            ]
+          ]
+        }
+      });
+    }
+
+    if (text === "✏️ Обновить данные") {
+      // Получаем userId для Mini App
+      const { data: user } = await supabase
+        .from("users")
+        .select("id")
+        .eq("telegram_id", telegram_id)
+        .maybeSingle();
+
+      if (!user) {
+        return ctx.reply("❌ Пользователь не найден. Используйте /start для регистрации.");
+      }
+
+      const url = `https://nutrition-app4.vercel.app/?id=${user.id}`;
+      return ctx.reply("Обновите ваши данные:", {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "✏️ Обновить анкету",
+                web_app: { url }
+              }
+            ]
+          ]
+        }
+      });
+    }
+
+    if (text === "📋 Отчет за сегодня") {
+      // Используем существующую логику команды /отчет
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      const { data: meals, error } = await supabase
+        .from("diary")
+        .select("meal_text, calories, protein, fat, carbs, created_at")
+        .eq("user_id", telegram_id)
+        .gte("created_at", todayISO)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("[bot] Ошибка получения отчёта:", error);
+        return ctx.reply("❌ Ошибка базы данных.");
+      }
+
+      if (!meals || meals.length === 0) {
+        return ctx.reply("📋 Сегодня ещё не было приёмов пищи.");
+      }
+
+      const todayMeals = await getTodayMeals(telegram_id);
+      const dailyNorm = await getUserDailyNorm(telegram_id);
+
+      let report = "📋 Отчёт за сегодня:\n\n";
+      meals.forEach((meal, index) => {
+        const time = new Date(meal.created_at).toLocaleTimeString("ru-RU", {
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+        report += `${index + 1}. ${meal.meal_text} (${time})\n   🔥 ${meal.calories} ккал | 🥚 ${Number(meal.protein).toFixed(1)}г | 🥥 ${Number(meal.fat).toFixed(1)}г | 🍚 ${Number(meal.carbs || 0).toFixed(1)}г\n\n`;
+      });
+
+      report += `\n${formatProgressMessage(todayMeals, dailyNorm)}`;
+
+      return ctx.reply(report);
+    }
+
+    if (text === "❌ Отменить последнее") {
+      // Используем существующую логику команды /отменить
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      const { data: lastMeal, error: selectError } = await supabase
+        .from("diary")
+        .select("id, meal_text, calories")
+        .eq("user_id", telegram_id)
+        .gte("created_at", todayISO)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (selectError) {
+        console.error("[bot] Ошибка поиска:", selectError);
+        return ctx.reply("❌ Ошибка базы данных.");
+      }
+
+      if (!lastMeal) {
+        return ctx.reply("❌ Сегодня ещё не было добавлено ни одного приёма пищи.");
+      }
+
+      const { error: deleteError } = await supabase
+        .from("diary")
+        .delete()
+        .eq("id", lastMeal.id);
+
+      if (deleteError) {
+        console.error("[bot] Ошибка удаления:", deleteError);
+        return ctx.reply("❌ Ошибка удаления.");
+      }
+
+      const todayMeals = await getTodayMeals(telegram_id);
+      const dailyNorm = await getUserDailyNorm(telegram_id);
+
+      return ctx.reply(
+        `✅ Удалено: ${lastMeal.meal_text} (${lastMeal.calories} ккал)\n\n${formatProgressMessage(todayMeals, dailyNorm)}`
+      );
+    }
+
+    if (text === "💡 Рекомендации") {
+      const processingMsg = await ctx.reply("🤔 Анализирую ваше питание и готовлю рекомендации...");
+
+      // Получаем данные пользователя
+      const { data: userData } = await supabase
+        .from("users")
+        .select("calories, protein, fat, carbs, goal")
+        .eq("telegram_id", telegram_id)
+        .maybeSingle();
+
+      if (!userData || !userData.calories) {
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id,
+          processingMsg.message_id,
+          undefined,
+          "❌ Сначала пройдите анкету, чтобы получить рекомендации."
+        );
+        return;
+      }
+
+      // Получаем статистику за последние 7 дней
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekAgoISO = weekAgo.toISOString();
+
+      const { data: weekMeals } = await supabase
+        .from("diary")
+        .select("calories, protein, fat, carbs")
+        .eq("user_id", telegram_id)
+        .gte("created_at", weekAgoISO);
+
+      const weekTotals = (weekMeals || []).reduce(
+        (acc, meal) => ({
+          calories: acc.calories + Number(meal.calories || 0),
+          protein: acc.protein + Number(meal.protein || 0),
+          fat: acc.fat + Number(meal.fat || 0),
+          carbs: acc.carbs + Number(meal.carbs || 0)
+        }),
+        { calories: 0, protein: 0, fat: 0, carbs: 0 }
+      );
+
+      const avgDaily = {
+        calories: weekTotals.calories / 7,
+        protein: weekTotals.protein / 7,
+        fat: weekTotals.fat / 7,
+        carbs: weekTotals.carbs / 7
+      };
+
+      // Генерируем рекомендации через ChatGPT
+      const goalText = userData.goal === "lose" ? "похудение" : userData.goal === "gain" ? "набор веса" : "поддержание веса";
+      
+      const prompt = `Ты — эксперт по питанию. Проанализируй данные пользователя и дай персональные рекомендации.
+
+Цель пользователя: ${goalText}
+Дневная норма: ${userData.calories} ккал, ${userData.protein}г белков, ${userData.fat}г жиров, ${userData.carbs}г углеводов
+
+Среднее потребление за последние 7 дней:
+- Калории: ${avgDaily.calories.toFixed(0)} ккал/день
+- Белки: ${avgDaily.protein.toFixed(1)}г/день
+- Жиры: ${avgDaily.fat.toFixed(1)}г/день
+- Углеводы: ${avgDaily.carbs.toFixed(1)}г/день
+
+Дай конкретные рекомендации:
+1. Что нужно изменить в питании
+2. Какие продукты добавить/убрать
+3. Советы по достижению цели
+4. Общие рекомендации по здоровому питанию
+
+Ответ должен быть на русском языке, структурированным и мотивирующим.`;
+
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: "Ты — персональный тренер по питанию. Дай конкретные, полезные и мотивирующие рекомендации."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 800
+        });
+
+        const recommendations = response.choices[0]?.message?.content || "Не удалось сгенерировать рекомендации.";
+
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id,
+          processingMsg.message_id,
+          undefined,
+          `💡 Рекомендации по питанию:\n\n${recommendations}`
+        );
+      } catch (error) {
+        console.error("[bot] Ошибка генерации рекомендаций:", error);
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id,
+          processingMsg.message_id,
+          undefined,
+          "❌ Не удалось сгенерировать рекомендации. Попробуйте позже."
+        );
+      }
       return;
     }
 
