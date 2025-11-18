@@ -618,18 +618,20 @@ bot.on("text", async (ctx) => {
         return;
       }
 
-      // Получаем статистику за последние 7 дней
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const weekAgoISO = weekAgo.toISOString();
+      // Получаем все данные о питании за последние 30 дней для полного анализа
+      const monthAgo = new Date();
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      const monthAgoISO = monthAgo.toISOString();
 
-      const { data: weekMeals } = await supabase
+      const { data: allMeals } = await supabase
         .from("diary")
-        .select("calories, protein, fat, carbs")
+        .select("calories, protein, fat, carbs, created_at")
         .eq("user_id", telegram_id)
-        .gte("created_at", weekAgoISO);
+        .gte("created_at", monthAgoISO)
+        .order("created_at", { ascending: false });
 
-      const weekTotals = (weekMeals || []).reduce(
+      // Подсчитываем статистику
+      const totals = (allMeals || []).reduce(
         (acc, meal) => ({
           calories: acc.calories + Number(meal.calories || 0),
           protein: acc.protein + Number(meal.protein || 0),
@@ -639,34 +641,58 @@ bot.on("text", async (ctx) => {
         { calories: 0, protein: 0, fat: 0, carbs: 0 }
       );
 
-      const avgDaily = {
-        calories: weekTotals.calories / 7,
-        protein: weekTotals.protein / 7,
-        fat: weekTotals.fat / 7,
-        carbs: weekTotals.carbs / 7
-      };
+      const daysWithMeals = new Set((allMeals || []).map(m => new Date(m.created_at).toDateString())).size;
+      const avgDaily = daysWithMeals > 0 ? {
+        calories: totals.calories / daysWithMeals,
+        protein: totals.protein / daysWithMeals,
+        fat: totals.fat / daysWithMeals,
+        carbs: totals.carbs / daysWithMeals
+      } : { calories: 0, protein: 0, fat: 0, carbs: 0 };
 
-      // Генерируем рекомендации через ChatGPT
+      // Получаем данные пользователя из анкеты
+      const { data: userProfile } = await supabase
+        .from("users")
+        .select("gender, age, weight, height, activity, goal")
+        .eq("telegram_id", telegram_id)
+        .maybeSingle();
+
       const goalText = userData.goal === "lose" ? "похудение" : userData.goal === "gain" ? "набор веса" : "поддержание веса";
+      const genderText = userProfile?.gender === "male" ? "мужчина" : "женщина";
+      const activityText = userProfile?.activity === "low" ? "низкая" : 
+                          userProfile?.activity === "moderate" ? "умеренная" :
+                          userProfile?.activity === "high" ? "высокая" : "очень высокая";
       
-      const prompt = `Ты — эксперт по питанию. Проанализируй данные пользователя и дай персональные рекомендации.
+      const prompt = `Ты — персональный тренер по питанию. Проанализируй данные пользователя и дай детальные рекомендации.
 
-Цель пользователя: ${goalText}
-Дневная норма: ${userData.calories} ккал, ${userData.protein}г белков, ${userData.fat}г жиров, ${userData.carbs}г углеводов
+ДАННЫЕ ИЗ АНКЕТЫ:
+- Пол: ${genderText}
+- Возраст: ${userProfile?.age || "не указан"} лет
+- Вес: ${userProfile?.weight || "не указан"} кг
+- Рост: ${userProfile?.height || "не указан"} см
+- Активность: ${activityText}
+- Цель: ${goalText}
 
-Среднее потребление за последние 7 дней:
-- Калории: ${avgDaily.calories.toFixed(0)} ккал/день
-- Белки: ${avgDaily.protein.toFixed(1)}г/день
-- Жиры: ${avgDaily.fat.toFixed(1)}г/день
-- Углеводы: ${avgDaily.carbs.toFixed(1)}г/день
+ДНЕВНАЯ НОРМА:
+- Калории: ${userData.calories} ккал
+- Белки: ${userData.protein}г
+- Жиры: ${userData.fat}г
+- Углеводы: ${userData.carbs}г
 
-Дай конкретные рекомендации:
-1. Что нужно изменить в питании
-2. Какие продукты добавить/убрать
-3. Советы по достижению цели
-4. Общие рекомендации по здоровому питанию
+ФАКТИЧЕСКОЕ ПОТРЕБЛЕНИЕ (среднее за последние ${daysWithMeals} дней):
+- Калории: ${avgDaily.calories.toFixed(0)} ккал/день (${((avgDaily.calories / userData.calories) * 100).toFixed(0)}% от нормы)
+- Белки: ${avgDaily.protein.toFixed(1)}г/день (${((avgDaily.protein / userData.protein) * 100).toFixed(0)}% от нормы)
+- Жиры: ${avgDaily.fat.toFixed(1)}г/день (${((avgDaily.fat / userData.fat) * 100).toFixed(0)}% от нормы)
+- Углеводы: ${avgDaily.carbs.toFixed(1)}г/день (${((avgDaily.carbs / userData.carbs) * 100).toFixed(0)}% от нормы)
 
-Ответ должен быть на русском языке, структурированным и мотивирующим.`;
+Дай детальный анализ:
+1. Оценка текущего питания (что хорошо, что плохо)
+2. Соответствие цели (насколько питание помогает достичь цели)
+3. Конкретные рекомендации по калориям и БЖУ
+4. Какие продукты добавить/убрать
+5. Практические советы по улучшению питания
+6. Мотивирующее заключение
+
+Ответ должен быть на русском языке, структурированным, конкретным и мотивирующим.`;
 
       try {
         const response = await openai.chat.completions.create({
