@@ -534,8 +534,9 @@ bot.on("text", async (ctx) => {
       }
 
       const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
-      // Сразу открываем Mini App без промежуточного сообщения
-      return ctx.reply("📋 Отчет", {
+      // Отправляем минимальное сообщение с inline кнопкой для открытия Mini App
+      // В Telegram нельзя напрямую открыть Mini App из кнопки меню, нужна inline кнопка
+      return ctx.reply(" ", {
         reply_markup: {
           inline_keyboard: [
             [
