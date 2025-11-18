@@ -534,7 +534,8 @@ bot.on("text", async (ctx) => {
       }
 
       const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
-      return ctx.reply("Открываю отчет...", {
+      // Сразу открываем Mini App без промежуточного сообщения
+      return ctx.reply("📋 Отчет", {
         reply_markup: {
           inline_keyboard: [
             [
