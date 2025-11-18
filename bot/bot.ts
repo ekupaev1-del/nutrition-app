@@ -113,12 +113,13 @@ bot.start(async (ctx) => {
       reply_markup: {
         keyboard: [
           [
-            { text: "📊 Статистика" },
-            { text: "✏️ Обновить данные" }
+            { text: "📝 Заполнить анкету/обновить" }
           ],
           [
-            { text: "📋 Отчет за сегодня" },
-            { text: "❌ Отменить последнее" }
+            { text: "📋 Получить отчет" }
+          ],
+          [
+            { text: "✏️ Редактировать прием пищи" }
           ],
           [
             { text: "💡 Рекомендации" }
@@ -409,34 +410,7 @@ bot.on("text", async (ctx) => {
     }
 
     // Обработка кнопок меню
-    if (text === "📊 Статистика") {
-      // Получаем userId для Mini App
-      const { data: user } = await supabase
-        .from("users")
-        .select("id")
-        .eq("telegram_id", telegram_id)
-        .maybeSingle();
-
-      if (!user) {
-        return ctx.reply("❌ Пользователь не найден. Используйте /start для регистрации.");
-      }
-
-      const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
-      return ctx.reply("Открываю статистику...", {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: "📊 Открыть статистику",
-                web_app: { url: statsUrl }
-              }
-            ]
-          ]
-        }
-      });
-    }
-
-    if (text === "✏️ Обновить данные") {
+    if (text === "📝 Заполнить анкету/обновить") {
       // Получаем userId для Mini App
       const { data: user } = await supabase
         .from("users")
@@ -449,12 +423,12 @@ bot.on("text", async (ctx) => {
       }
 
       const url = `https://nutrition-app4.vercel.app/?id=${user.id}`;
-      return ctx.reply("Обновите ваши данные:", {
+      return ctx.reply("Заполните или обновите анкету:", {
         reply_markup: {
           inline_keyboard: [
             [
               {
-                text: "✏️ Обновить анкету",
+                text: "📝 Открыть анкету",
                 web_app: { url }
               }
             ]
@@ -463,46 +437,54 @@ bot.on("text", async (ctx) => {
       });
     }
 
-    if (text === "📋 Отчет за сегодня") {
-      // Используем существующую логику команды /отчет
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayISO = today.toISOString();
+    if (text === "📋 Получить отчет") {
+      // Получаем userId для Mini App
+      const { data: user } = await supabase
+        .from("users")
+        .select("id")
+        .eq("telegram_id", telegram_id)
+        .maybeSingle();
 
-      const { data: meals, error } = await supabase
-        .from("diary")
-        .select("meal_text, calories, protein, fat, carbs, created_at")
-        .eq("user_id", telegram_id)
-        .gte("created_at", todayISO)
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        console.error("[bot] Ошибка получения отчёта:", error);
-        return ctx.reply("❌ Ошибка базы данных.");
+      if (!user) {
+        return ctx.reply("❌ Пользователь не найден. Используйте /start для регистрации.");
       }
 
-      if (!meals || meals.length === 0) {
-        return ctx.reply("📋 Сегодня ещё не было приёмов пищи.");
-      }
-
-      const todayMeals = await getTodayMeals(telegram_id);
-      const dailyNorm = await getUserDailyNorm(telegram_id);
-
-      let report = "📋 Отчёт за сегодня:\n\n";
-      meals.forEach((meal, index) => {
-        const time = new Date(meal.created_at).toLocaleTimeString("ru-RU", {
-          hour: "2-digit",
-          minute: "2-digit"
-        });
-        report += `${index + 1}. ${meal.meal_text} (${time})\n   🔥 ${meal.calories} ккал | 🥚 ${Number(meal.protein).toFixed(1)}г | 🥥 ${Number(meal.fat).toFixed(1)}г | 🍚 ${Number(meal.carbs || 0).toFixed(1)}г\n\n`;
+      const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
+      return ctx.reply("Открываю отчет...", {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "📋 Открыть отчет",
+                web_app: { url: statsUrl }
+              }
+            ]
+          ]
+        }
       });
-
-      report += `\n${formatProgressMessage(todayMeals, dailyNorm)}`;
-
-      return ctx.reply(report);
     }
 
-    if (text === "❌ Отменить последнее") {
+    if (text === "✏️ Редактировать прием пищи") {
+      return ctx.reply("Выберите действие:", {
+        reply_markup: {
+          keyboard: [
+            [
+              { text: "❌ Удалить последний прием пищи" }
+            ],
+            [
+              { text: "✏️ Редактировать прием пищи" }
+            ],
+            [
+              { text: "🔙 Назад в меню" }
+            ]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: false
+        }
+      });
+    }
+
+    if (text === "❌ Удалить последний прием пищи") {
       // Используем существующую логику команды /отменить
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -539,9 +521,81 @@ bot.on("text", async (ctx) => {
       const todayMeals = await getTodayMeals(telegram_id);
       const dailyNorm = await getUserDailyNorm(telegram_id);
 
-      return ctx.reply(
-        `✅ Удалено: ${lastMeal.meal_text} (${lastMeal.calories} ккал)\n\n${formatProgressMessage(todayMeals, dailyNorm)}`
+      // Возвращаем в главное меню
+      await ctx.reply(
+        `✅ Удалено: ${lastMeal.meal_text} (${lastMeal.calories} ккал)\n\n${formatProgressMessage(todayMeals, dailyNorm)}`,
+        {
+          reply_markup: {
+            keyboard: [
+              [
+                { text: "📝 Заполнить анкету/обновить" }
+              ],
+              [
+                { text: "📋 Получить отчет" }
+              ],
+              [
+                { text: "✏️ Редактировать прием пищи" }
+              ],
+              [
+                { text: "💡 Рекомендации" }
+              ]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: false
+          }
+        }
       );
+      return;
+    }
+
+    if (text === "✏️ Редактировать прием пищи" && ctx.message.text === "✏️ Редактировать прием пищи") {
+      // Получаем userId для Mini App
+      const { data: user } = await supabase
+        .from("users")
+        .select("id")
+        .eq("telegram_id", telegram_id)
+        .maybeSingle();
+
+      if (!user) {
+        return ctx.reply("❌ Пользователь не найден. Используйте /start для регистрации.");
+      }
+
+      const editUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}&view=edit`;
+      return ctx.reply("Открываю редактор...", {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "✏️ Открыть редактор",
+                web_app: { url: editUrl }
+              }
+            ]
+          ]
+        }
+      });
+    }
+
+    if (text === "🔙 Назад в меню") {
+      return ctx.reply("Главное меню:", {
+        reply_markup: {
+          keyboard: [
+            [
+              { text: "📝 Заполнить анкету/обновить" }
+            ],
+            [
+              { text: "📋 Получить отчет" }
+            ],
+            [
+              { text: "✏️ Редактировать прием пищи" }
+            ],
+            [
+              { text: "💡 Рекомендации" }
+            ]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: false
+        }
+      });
     }
 
     if (text === "💡 Рекомендации") {

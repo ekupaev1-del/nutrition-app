@@ -18,8 +18,9 @@ function LoadingFallback() {
 function StatsPageContent() {
   const searchParams = useSearchParams();
   const userIdParam = searchParams.get("id");
+  const initialView = searchParams.get("view") || "menu";
   const [userId, setUserId] = useState<number | null>(null);
-  const [view, setView] = useState<"menu" | "report" | "edit">("menu");
+  const [view, setView] = useState<"menu" | "report" | "edit">(initialView as "menu" | "report" | "edit");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +72,55 @@ function StatsPageContent() {
       }
     } catch (err) {
       setError("Ошибка загрузки данных");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateReportForPeriod = async (period: "today" | "week" | "month" | "year") => {
+    if (!userId) {
+      setError("Пользователь не найден");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      let start = new Date();
+
+      switch (period) {
+        case "today":
+          start.setHours(0, 0, 0, 0);
+          break;
+        case "week":
+          start.setDate(start.getDate() - 7);
+          start.setHours(0, 0, 0, 0);
+          break;
+        case "month":
+          start.setMonth(start.getMonth() - 1);
+          start.setHours(0, 0, 0, 0);
+          break;
+        case "year":
+          start.setFullYear(start.getFullYear() - 1);
+          start.setHours(0, 0, 0, 0);
+          break;
+      }
+
+      const response = await fetch(
+        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${today.toISOString()}`
+      );
+      const data = await response.json();
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setReportData(data.meals || []);
+        setReportTotals(data.totals || null);
+        setView("report");
+      }
+    } catch (err) {
+      setError("Ошибка генерации отчета");
     } finally {
       setLoading(false);
     }
@@ -167,40 +217,53 @@ function StatsPageContent() {
     );
   }
 
-  // Главное меню
+  // Главное меню (только для отчета)
   if (view === "menu") {
     return (
       <div className="min-h-screen bg-background p-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
           <h1 className="text-2xl font-bold mb-6 text-textPrimary text-center">
-            📊 Статистика
+            📋 Получить отчет
           </h1>
 
-          <div className="space-y-4">
+          <div className="mb-4">
+            <p className="text-textSecondary text-center mb-6">Выберите период:</p>
+          </div>
+
+          <div className="space-y-3">
             <button
-              onClick={() => setView("report")}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity text-left"
+              onClick={() => generateReportForPeriod("today")}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📋</span>
-                <div>
-                  <div className="font-bold">Получить отчет</div>
-                  <div className="text-sm opacity-90">Выберите период времени</div>
-                </div>
-              </div>
+              📅 Сегодня
             </button>
 
             <button
-              onClick={() => setView("edit")}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity text-left"
+              onClick={() => generateReportForPeriod("week")}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">✏️</span>
-                <div>
-                  <div className="font-bold">Редактировать прием пищи</div>
-                  <div className="text-sm opacity-90">Удалить или изменить еду</div>
-                </div>
-              </div>
+              📅 Неделю
+            </button>
+
+            <button
+              onClick={() => generateReportForPeriod("month")}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
+            >
+              📅 Месяц
+            </button>
+
+            <button
+              onClick={() => generateReportForPeriod("year")}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
+            >
+              📅 Год
+            </button>
+
+            <button
+              onClick={() => setView("report")}
+              className="w-full py-4 px-6 bg-accent/20 text-accent font-semibold rounded-xl hover:bg-accent/30 transition-colors"
+            >
+              📅 Выбранный период
             </button>
 
             <button
@@ -209,7 +272,7 @@ function StatsPageContent() {
                   (window as any).Telegram.WebApp.close();
                 }
               }}
-              className="w-full py-3 px-6 bg-gray-100 text-textPrimary font-medium rounded-xl hover:bg-gray-200 transition-colors"
+              className="w-full py-3 px-6 bg-gray-100 text-textPrimary font-medium rounded-xl hover:bg-gray-200 transition-colors mt-4"
             >
               Закрыть
             </button>
@@ -225,48 +288,56 @@ function StatsPageContent() {
       <div className="min-h-screen bg-background p-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-textPrimary">📋 Получить отчет</h2>
+            <h2 className="text-xl font-bold text-textPrimary">📋 Отчет</h2>
             <button
-              onClick={() => setView("menu")}
+              onClick={() => {
+                setView("menu");
+                setReportData(null);
+                setReportTotals(null);
+              }}
               className="text-textSecondary hover:text-textPrimary"
             >
               ← Назад
             </button>
           </div>
 
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-textPrimary mb-2">
-                Начало периода
-              </label>
-              <input
-                type="date"
-                value={reportStartDate}
-                onChange={(e) => setReportStartDate(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary"
-              />
-            </div>
+          {!reportData && (
+            <>
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-textPrimary mb-2">
+                    Начало периода
+                  </label>
+                  <input
+                    type="date"
+                    value={reportStartDate}
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-textPrimary mb-2">
-                Конец периода
-              </label>
-              <input
-                type="date"
-                value={reportEndDate}
-                onChange={(e) => setReportEndDate(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary"
-              />
-            </div>
-          </div>
+                <div>
+                  <label className="block text-sm font-medium text-textPrimary mb-2">
+                    Конец периода
+                  </label>
+                  <input
+                    type="date"
+                    value={reportEndDate}
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary"
+                  />
+                </div>
+              </div>
 
-          <button
-            onClick={generateReport}
-            disabled={loading || !reportStartDate || !reportEndDate}
-            className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-          >
-            {loading ? "Генерирую отчет..." : "Сгенерировать отчет"}
-          </button>
+              <button
+                onClick={generateReport}
+                disabled={loading || !reportStartDate || !reportEndDate}
+                className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+              >
+                {loading ? "Генерирую отчет..." : "Сгенерировать отчет"}
+              </button>
+            </>
+          )}
 
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
