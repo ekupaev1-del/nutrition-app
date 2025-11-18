@@ -163,14 +163,19 @@ bot.start(async (ctx) => {
 //      Обработка данных из WebApp
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
-bot.on("web_app_data", async (ctx) => {
+bot.on("data_query", async (ctx) => {
   try {
     const telegram_id = ctx.from?.id;
     if (!telegram_id) {
-      return;
+      return ctx.answerWebAppQuery(ctx.inlineQuery?.id || "", {
+        type: "article",
+        id: "error",
+        title: "Ошибка",
+        message_text: "Не удалось определить пользователя"
+      });
     }
 
-    const data = ctx.webAppData?.data;
+    const data = ctx.inlineQuery?.query;
     if (!data) {
       return;
     }
@@ -210,7 +215,7 @@ bot.on("web_app_data", async (ctx) => {
       );
     }
   } catch (error) {
-    console.error("[bot] Ошибка обработки web_app_data:", error);
+    console.error("[bot] Ошибка обработки data_query:", error);
   }
 });
 
