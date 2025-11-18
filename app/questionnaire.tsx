@@ -174,6 +174,15 @@ export function QuestionnaireFormContent() {
       setSaved(true);
       setLoading(false);
       console.log("[handleSubmit] Данные успешно сохранены");
+
+      // Отправляем данные обратно в бот через Telegram WebApp
+      if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
+        (window as any).Telegram.WebApp.sendData(JSON.stringify({ action: "questionnaire_saved" }));
+        // Закрываем Mini App через небольшую задержку, чтобы данные успели отправиться
+        setTimeout(() => {
+          (window as any).Telegram.WebApp.close();
+        }, 500);
+      }
     } catch (err) {
       console.error("[handleSubmit] Ошибка отправки формы:", err);
       setError("Не удалось отправить данные. Попробуйте позже.");
