@@ -111,9 +111,8 @@ bot.start(async (ctx) => {
       console.log(`[bot] Показываю приветствие для нового пользователя`);
 
       // Отправляем приветственное сообщение с картинкой
-      // ВАЖНО: Загрузите вашу картинку в public/images/welcome.jpg или укажите публичный URL
-      // Временный URL - замените на свой после загрузки картинки
-      const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome.jpg";
+      // Картинка находится в public/images/welcome.png
+      const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome.png";
       
       // Если картинка не загружена, используем fallback без картинки
       try {
