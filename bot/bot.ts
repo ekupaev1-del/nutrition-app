@@ -194,20 +194,25 @@ bot.start(async (ctx) => {
 bot.on("message", async (ctx, next) => {
   // Проверяем, есть ли данные из WebApp
   if (ctx.message && "web_app_data" in ctx.message) {
+    console.log("[bot] Получены данные из WebApp");
     try {
       const telegram_id = ctx.from?.id;
       if (!telegram_id) {
+        console.log("[bot] Нет telegram_id, пропускаем");
         return next();
       }
 
       const data = (ctx.message as any).web_app_data?.data;
+      console.log("[bot] Данные из WebApp:", data);
       if (!data) {
+        console.log("[bot] Нет данных в web_app_data, пропускаем");
         return next();
       }
 
       let parsedData;
       try {
         parsedData = JSON.parse(data);
+        console.log("[bot] Распарсенные данные:", parsedData);
       } catch (e) {
         console.error("[bot] Ошибка парсинга данных из WebApp:", e);
         return next();
@@ -215,17 +220,24 @@ bot.on("message", async (ctx, next) => {
 
       // Если анкета сохранена - отправляем приветственное сообщение с меню
       if (parsedData.action === "questionnaire_saved") {
+        console.log("[bot] Обработка questionnaire_saved для telegram_id:", telegram_id);
+        
         // Получаем userId для создания ссылок на Mini App
-        const { data: user } = await supabase
+        const { data: user, error: userError } = await supabase
           .from("users")
           .select("id")
           .eq("telegram_id", telegram_id)
           .maybeSingle();
 
+        if (userError) {
+          console.error("[bot] Ошибка получения пользователя:", userError);
+        }
+
         if (user) {
           const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
           const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
           
+          console.log("[bot] Отправка сообщения с меню для пользователя:", user.id);
           await ctx.reply(
             "Теперь вы можете отправлять фото, текст и аудио того, что кушаете, и бот проанализирует всё!",
             {
@@ -249,12 +261,16 @@ bot.on("message", async (ctx, next) => {
               }
             }
           );
+          console.log("[bot] Сообщение отправлено успешно");
         } else {
+          console.log("[bot] Пользователь не найден, отправляем сообщение без меню");
           await ctx.reply(
             "Теперь вы можете отправлять фото, текст и аудио того, что кушаете, и бот проанализирует всё!"
           );
         }
         return; // Не передаем управление дальше
+      } else {
+        console.log("[bot] Неизвестное действие:", parsedData.action);
       }
     } catch (error) {
       console.error("[bot] Ошибка обработки web_app_data:", error);
