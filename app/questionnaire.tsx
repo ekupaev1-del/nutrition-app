@@ -180,13 +180,15 @@ export function QuestionnaireFormContent() {
         // Отправляем данные обратно в бот через Telegram WebApp
         try {
           (window as any).Telegram.WebApp.sendData(JSON.stringify({ action: "questionnaire_saved" }));
+          console.log("[questionnaire] Данные отправлены в бот, закрываем Mini App");
         } catch (e) {
           console.error("[questionnaire] Ошибка отправки данных:", e);
         }
-        // Закрываем Mini App через небольшую задержку, чтобы данные успели отправиться
+        // Закрываем Mini App через задержку, чтобы данные успели отправиться
         setTimeout(() => {
           (window as any).Telegram.WebApp.close();
-        }, 500);
+          console.log("[questionnaire] Mini App закрыт");
+        }, 800);
       }
     } catch (err) {
       console.error("[handleSubmit] Ошибка отправки формы:", err);
