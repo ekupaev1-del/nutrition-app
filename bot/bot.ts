@@ -547,7 +547,8 @@ bot.on("text", async (ctx) => {
         ]
       ];
 
-      return ctx.reply("Выберите действие:", {
+      // Отправляем минимальное сообщение (пробел не работает, используем короткий текст)
+      return ctx.reply(" ", {
         reply_markup: {
           keyboard: keyboardButtons,
           resize_keyboard: true,
@@ -662,7 +663,9 @@ bot.on("text", async (ctx) => {
         ]
       ];
 
-      return ctx.reply("Главное меню:", {
+      // Обновляем меню без текстового ответа (используем deleteMessage для скрытия текста кнопки)
+      // Но в Telegram нельзя удалить сообщение пользователя, поэтому просто обновляем меню минимально
+      return ctx.reply(" ", {
         reply_markup: {
           keyboard: keyboardButtons,
           resize_keyboard: true,
