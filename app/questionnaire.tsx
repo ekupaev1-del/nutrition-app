@@ -176,19 +176,51 @@ export function QuestionnaireFormContent() {
       console.log("[handleSubmit] Данные успешно сохранены");
 
       // Закрываем Mini App и отправляем сообщение через бота
-      if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
-        // Отправляем данные обратно в бот через Telegram WebApp
-        try {
-          (window as any).Telegram.WebApp.sendData(JSON.stringify({ action: "questionnaire_saved" }));
-          console.log("[questionnaire] Данные отправлены в бот, закрываем Mini App");
-        } catch (e) {
-          console.error("[questionnaire] Ошибка отправки данных:", e);
+      if (typeof window !== "undefined") {
+        const tg = (window as any).Telegram;
+        if (tg?.WebApp) {
+          const webApp = tg.WebApp;
+          console.log("[questionnaire] WebApp доступен, отправляем данные");
+          
+          try {
+            // Отправляем данные обратно в бот через Telegram WebApp
+            webApp.sendData(JSON.stringify({ action: "questionnaire_saved" }));
+            console.log("[questionnaire] Данные отправлены в бот через sendData");
+            
+            // Закрываем Mini App через задержку, чтобы данные успели отправиться
+            setTimeout(() => {
+              try {
+                webApp.close();
+                console.log("[questionnaire] Mini App закрыт через close()");
+              } catch (closeError) {
+                console.error("[questionnaire] Ошибка закрытия Mini App:", closeError);
+                // Пробуем альтернативный способ
+                try {
+                  webApp.ready();
+                  webApp.expand();
+                  // Если close() не работает, пробуем через MainButton
+                  if (webApp.MainButton) {
+                    webApp.MainButton.hide();
+                  }
+                } catch (e) {
+                  console.error("[questionnaire] Альтернативные способы закрытия не сработали:", e);
+                }
+              }
+            }, 1000); // Увеличиваем задержку до 1 секунды
+          } catch (e) {
+            console.error("[questionnaire] Ошибка отправки данных:", e);
+            // Даже если отправка не удалась, пытаемся закрыть
+            setTimeout(() => {
+              try {
+                webApp.close();
+              } catch (closeError) {
+                console.error("[questionnaire] Ошибка закрытия после ошибки отправки:", closeError);
+              }
+            }, 500);
+          }
+        } else {
+          console.warn("[questionnaire] Telegram WebApp недоступен");
         }
-        // Закрываем Mini App через задержку, чтобы данные успели отправиться
-        setTimeout(() => {
-          (window as any).Telegram.WebApp.close();
-          console.log("[questionnaire] Mini App закрыт");
-        }, 800);
       }
     } catch (err) {
       console.error("[handleSubmit] Ошибка отправки формы:", err);
