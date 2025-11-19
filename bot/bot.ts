@@ -629,24 +629,26 @@ bot.on("text", async (ctx) => {
       const statsUrl = user ? `https://nutrition-app4.vercel.app/stats?id=${user.id}` : "";
 
       // Возвращаем в главное меню
+      const keyboardButtons: any[] = [
+        [
+          { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
+        ],
+        [
+          { text: "📋 Получить отчет", web_app: user ? { url: statsUrl } : undefined }
+        ],
+        [
+          { text: "✏️ Редактировать прием пищи" }
+        ],
+        [
+          { text: "💡 Рекомендации" }
+        ]
+      ];
+
       await ctx.reply(
         `✅ Удалено: ${lastMeal.meal_text} (${lastMeal.calories} ккал)\n\n${formatProgressMessage(todayMeals, dailyNorm)}`,
         {
           reply_markup: {
-            keyboard: [
-              [
-                { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
-              ],
-              [
-                { text: "📋 Получить отчет", web_app: user ? { url: statsUrl } : undefined }
-              ],
-              [
-                { text: "✏️ Редактировать прием пищи" }
-              ],
-              [
-                { text: "💡 Рекомендации" }
-              ]
-            ].map(row => row.filter(btn => btn.web_app || !btn.web_app)),
+            keyboard: keyboardButtons,
             resize_keyboard: true,
             one_time_keyboard: false
           }
@@ -667,22 +669,24 @@ bot.on("text", async (ctx) => {
       const updateUrl = user ? `https://nutrition-app4.vercel.app/?id=${user.id}` : "";
       const statsUrl = user ? `https://nutrition-app4.vercel.app/stats?id=${user.id}` : "";
 
+      const keyboardButtons: any[] = [
+        [
+          { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
+        ],
+        [
+          { text: "📋 Получить отчет", web_app: user ? { url: statsUrl } : undefined }
+        ],
+        [
+          { text: "✏️ Редактировать прием пищи" }
+        ],
+        [
+          { text: "💡 Рекомендации" }
+        ]
+      ];
+
       return ctx.reply("Главное меню:", {
         reply_markup: {
-          keyboard: [
-            [
-              { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
-            ],
-            [
-              { text: "📋 Получить отчет", web_app: user ? { url: statsUrl } : undefined }
-            ],
-            [
-              { text: "✏️ Редактировать прием пищи" }
-            ],
-            [
-              { text: "💡 Рекомендации" }
-            ]
-          ].map(row => row.filter(btn => btn.web_app || !btn.web_app)),
+          keyboard: keyboardButtons,
           resize_keyboard: true,
           one_time_keyboard: false
         }

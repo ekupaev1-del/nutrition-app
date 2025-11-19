@@ -204,6 +204,7 @@ function StatsPageContent() {
     if (view === "edit") {
       loadMealsForEdit();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, userId]);
 
   if (error && !userId) {
