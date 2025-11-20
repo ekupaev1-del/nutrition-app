@@ -164,6 +164,16 @@ export async function POST(req: Request) {
     carbs
   });
 
+  // Сначала проверяем, была ли анкета уже заполнена (чтобы различать первое сохранение и обновление)
+  const { data: existingUser } = await supabase
+    .from("users")
+    .select("calories")
+    .eq("id", numericId)
+    .maybeSingle();
+
+  const isFirstTime = !existingUser || !existingUser.calories;
+  console.log("[/api/save] Это первое сохранение?", isFirstTime);
+
   // ВАЖНО: Только UPDATE, никаких INSERT/UPSERT!
   // Форма НИКОГДА не должна создавать новые строки в users.
   // Бот создаёт строку при /start, форма только обновляет существующую.
@@ -207,10 +217,10 @@ export async function POST(req: Request) {
   console.log("[/api/save] OK updated id:", numericId);
   console.log("[/api/save] Данные пользователя:", { id: user.id, telegram_id: user.telegram_id });
 
-  // Отправляем сообщение с меню через Telegram Bot API (как в /start)
+  // Отправляем сообщение с меню только при ПЕРВОМ сохранении анкеты
   // ВАЖНО: Выполняем синхронно, чтобы убедиться, что сообщение отправлено
-  if (user.telegram_id) {
-    console.log("[/api/save] Отправляем меню в Telegram для telegram_id:", user.telegram_id);
+  if (user.telegram_id && isFirstTime) {
+    console.log("[/api/save] Первое сохранение - отправляем меню в Telegram");
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
     const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
     
@@ -245,6 +255,8 @@ export async function POST(req: Request) {
       console.error("[/api/save] ❌ Ошибка отправки сообщения:", err);
       // Не прерываем выполнение - данные уже сохранены
     }
+  } else if (user.telegram_id && !isFirstTime) {
+    console.log("[/api/save] Обновление анкеты - сообщение не отправляем");
   } else {
     console.warn("[/api/save] ⚠️ У пользователя нет telegram_id, сообщение не отправлено");
   }
