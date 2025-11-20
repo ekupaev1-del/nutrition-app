@@ -3,9 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 // Функция для отправки сообщения через Telegram Bot API
 async function sendTelegramMessage(telegramId: number, text: string, keyboard?: any) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  // Пробуем получить токен из разных источников
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
   if (!botToken) {
     console.error("[/api/save] TELEGRAM_BOT_TOKEN не установлен");
+    console.error("[/api/save] Доступные переменные окружения:", Object.keys(process.env).filter(k => k.includes("TELEGRAM") || k.includes("BOT")));
     return;
   }
 
