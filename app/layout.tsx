@@ -37,6 +37,19 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
       </head>
       <body className={`${nunito.className} ${nunito.variable} bg-background text-textPrimary antialiased`}>{children}
+        {/* Telegram WebApp Script */}
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js"
+          strategy="beforeInteractive"
+          onLoad={() => {
+            console.log("[layout] Telegram WebApp script загружен");
+            if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
+              const webApp = (window as any).Telegram.WebApp;
+              webApp.ready();
+              console.log("[layout] Telegram WebApp инициализирован");
+            }
+          }}
+        />
         <Script id="register-service-worker" strategy="afterInteractive">
           {`
             if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
