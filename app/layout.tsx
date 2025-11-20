@@ -41,15 +41,32 @@ export default function RootLayout({
         <Script
           src="https://telegram.org/js/telegram-web-app.js"
           strategy="beforeInteractive"
-          onLoad={() => {
-            console.log("[layout] Telegram WebApp script загружен");
-            if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
-              const webApp = (window as any).Telegram.WebApp;
-              webApp.ready();
-              console.log("[layout] Telegram WebApp инициализирован");
-            }
-          }}
         />
+        <Script id="init-telegram-webapp" strategy="afterInteractive">
+          {`
+            (function() {
+              function initTelegramWebApp() {
+                if (typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp) {
+                  const webApp = window.Telegram.WebApp;
+                  if (typeof webApp.ready === 'function') {
+                    webApp.ready();
+                  }
+                  if (typeof webApp.expand === 'function') {
+                    webApp.expand();
+                  }
+                  console.log('[layout] Telegram WebApp инициализирован');
+                } else {
+                  setTimeout(initTelegramWebApp, 100);
+                }
+              }
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initTelegramWebApp);
+              } else {
+                initTelegramWebApp();
+              }
+            })();
+          `}
+        </Script>
         <Script id="register-service-worker" strategy="afterInteractive">
           {`
             if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
