@@ -28,19 +28,32 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
 
   try {
     console.log("[/api/save] Отправка запроса в Telegram API...");
+    console.log("[/api/save] URL:", url.replace(botToken.substring(0, 10), "***"));
+    console.log("[/api/save] Payload:", JSON.stringify({ ...payload, text: payload.text.substring(0, 50) + "..." }));
+    
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
+    
+    console.log("[/api/save] Ответ получен, статус:", response.status);
     const result = await response.json();
+    console.log("[/api/save] Результат от Telegram API:", JSON.stringify(result));
+    
     if (!result.ok) {
       console.error("[/api/save] ❌ Ошибка отправки сообщения в Telegram:", result);
+      console.error("[/api/save] Код ошибки:", result.error_code);
+      console.error("[/api/save] Описание ошибки:", result.description);
     } else {
       console.log("[/api/save] ✅ Сообщение успешно отправлено в Telegram");
+      console.log("[/api/save] Message ID:", result.result?.message_id);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("[/api/save] ❌ Ошибка при отправке сообщения:", error);
+    console.error("[/api/save] Тип ошибки:", error?.constructor?.name);
+    console.error("[/api/save] Сообщение ошибки:", error?.message);
+    console.error("[/api/save] Stack:", error?.stack);
   }
 }
 
