@@ -175,48 +175,27 @@ export function QuestionnaireFormContent() {
       setLoading(false);
       console.log("[handleSubmit] Данные успешно сохранены");
 
-      // Закрываем Mini App - сообщение уже отправлено через API
+      // Закрываем Mini App - сообщение отправляется через API
+      // После закрытия пользователь увидит меню в боте (если сообщение отправилось)
       if (typeof window !== "undefined") {
         const tg = (window as any).Telegram;
         if (tg?.WebApp) {
           const webApp = tg.WebApp;
           console.log("[questionnaire] Закрываем Mini App...");
-          console.log("[questionnaire] WebApp версия:", webApp.version);
-          console.log("[questionnaire] WebApp платформа:", webApp.platform);
           
-          // Используем правильный метод закрытия
-          const closeApp = () => {
+          // Закрываем через задержку, чтобы дать время API отправить сообщение
+          setTimeout(() => {
             try {
-              // Основной способ - close()
               if (typeof webApp.close === 'function') {
                 webApp.close();
-                console.log("[questionnaire] ✅ Вызван webApp.close()");
-                return true;
+                console.log("[questionnaire] ✅ Mini App закрыт");
+              } else {
+                console.warn("[questionnaire] ⚠️ webApp.close не является функцией");
               }
             } catch (e) {
-              console.error("[questionnaire] Ошибка при вызове close():", e);
+              console.error("[questionnaire] ❌ Ошибка закрытия Mini App:", e);
             }
-            return false;
-          };
-          
-          // Закрываем через небольшую задержку, чтобы дать время API завершиться
-          setTimeout(() => {
-            if (!closeApp()) {
-              console.warn("[questionnaire] ⚠️ Не удалось закрыть через close(), пробуем альтернативные методы");
-              // Альтернативный способ - отправляем событие закрытия
-              try {
-                if (webApp.ready) {
-                  webApp.ready();
-                }
-                // Пробуем через расширение и затем закрытие
-                if (webApp.expand) {
-                  webApp.expand();
-                }
-              } catch (e) {
-                console.error("[questionnaire] Ошибка альтернативных методов:", e);
-              }
-            }
-          }, 1000); // Увеличиваем задержку до 1 секунды
+          }, 2000); // Увеличиваем задержку до 2 секунд для гарантии отправки сообщения
         } else {
           console.warn("[questionnaire] ⚠️ Telegram WebApp недоступен");
         }

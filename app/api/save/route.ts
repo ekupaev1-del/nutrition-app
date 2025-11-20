@@ -208,6 +208,7 @@ export async function POST(req: Request) {
   console.log("[/api/save] Данные пользователя:", { id: user.id, telegram_id: user.telegram_id });
 
   // Отправляем сообщение с меню через Telegram Bot API (как в /start)
+  // ВАЖНО: Выполняем синхронно, чтобы убедиться, что сообщение отправлено
   if (user.telegram_id) {
     console.log("[/api/save] Отправляем меню в Telegram для telegram_id:", user.telegram_id);
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
@@ -235,15 +236,15 @@ export async function POST(req: Request) {
       one_time_keyboard: false
     };
 
-    // Отправляем сообщение асинхронно (не блокируем ответ)
-    console.log("[/api/save] Вызываем sendTelegramMessage...");
-    sendTelegramMessage(user.telegram_id, messageText, keyboard)
-      .then(() => {
-        console.log("[/api/save] ✅ sendTelegramMessage завершена");
-      })
-      .catch(err => {
-        console.error("[/api/save] ❌ Ошибка отправки сообщения:", err);
-      });
+    // Пробуем отправить сообщение синхронно (await)
+    try {
+      console.log("[/api/save] Вызываем sendTelegramMessage (синхронно)...");
+      await sendTelegramMessage(user.telegram_id, messageText, keyboard);
+      console.log("[/api/save] ✅ sendTelegramMessage завершена успешно");
+    } catch (err) {
+      console.error("[/api/save] ❌ Ошибка отправки сообщения:", err);
+      // Не прерываем выполнение - данные уже сохранены
+    }
   } else {
     console.warn("[/api/save] ⚠️ У пользователя нет telegram_id, сообщение не отправлено");
   }
