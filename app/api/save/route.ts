@@ -1,6 +1,42 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+// Функция для отправки сообщения через Telegram Bot API
+async function sendTelegramMessage(telegramId: number, text: string, keyboard?: any) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    console.error("[/api/save] TELEGRAM_BOT_TOKEN не установлен");
+    return;
+  }
+
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+  const payload: any = {
+    chat_id: telegramId,
+    text: text,
+    parse_mode: "HTML"
+  };
+
+  if (keyboard) {
+    payload.reply_markup = keyboard;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!result.ok) {
+      console.error("[/api/save] Ошибка отправки сообщения в Telegram:", result);
+    } else {
+      console.log("[/api/save] ✅ Сообщение отправлено в Telegram");
+    }
+  } catch (error) {
+    console.error("[/api/save] Ошибка при отправке сообщения:", error);
+  }
+}
+
 export async function POST(req: Request) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -72,7 +108,7 @@ export async function POST(req: Request) {
       carbs
     })
     .eq("id", numericId)
-    .select("id");
+    .select("id, telegram_id");
 
   if (error) {
     console.error("[/api/save] supabase error:", error);
@@ -93,6 +129,42 @@ export async function POST(req: Request) {
     );
   }
 
+  const user = data[0];
   console.log("[/api/save] OK updated id:", numericId);
-  return NextResponse.json({ ok: true, id: data[0].id });
+
+  // Отправляем сообщение с меню через Telegram Bot API
+  if (user.telegram_id) {
+    const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
+    const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
+    
+    const messageText = "✅ Отлично! Анкета сохранена.\n\n📸 Теперь вы можете отправлять фото, текст и аудио того, что кушаете, и бот проанализирует всё!";
+    
+    const keyboard = {
+      keyboard: [
+        [
+          { text: "✏️ Обновить анкету", web_app: { url: updateUrl } }
+        ],
+        [
+          { text: "📋 Получить отчет", web_app: { url: statsUrl } }
+        ],
+        [
+          { text: "✏️ Редактировать прием пищи" }
+        ],
+        [
+          { text: "💡 Рекомендации" }
+        ]
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false
+    };
+
+    // Отправляем сообщение асинхронно (не блокируем ответ)
+    sendTelegramMessage(user.telegram_id, messageText, keyboard).catch(err => {
+      console.error("[/api/save] Ошибка отправки сообщения:", err);
+    });
+  } else {
+    console.warn("[/api/save] У пользователя нет telegram_id, сообщение не отправлено");
+  }
+
+  return NextResponse.json({ ok: true, id: user.id });
 }
