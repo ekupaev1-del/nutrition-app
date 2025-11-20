@@ -29,14 +29,35 @@ export function QuestionnaireFormContent() {
   const [fat, setFat] = useState<number | null>(null);
   const [carbs, setCarbs] = useState<number | null>(null);
 
-  // Сохраняем ссылку на WebApp при монтировании
+  // Сохраняем ссылку на WebApp при монтировании и инициализируем его
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const tg = (window as any).Telegram;
-      if (tg?.WebApp) {
-        webAppRef.current = tg.WebApp;
-        console.log("[questionnaire] WebApp сохранен в ref:", webAppRef.current);
-      }
+      // Ждем, пока Telegram WebApp будет доступен
+      const initWebApp = () => {
+        const tg = (window as any).Telegram;
+        if (tg?.WebApp) {
+          webAppRef.current = tg.WebApp;
+          // Инициализируем WebApp
+          if (webAppRef.current.ready) {
+            webAppRef.current.ready();
+          }
+          console.log("[questionnaire] ✅ WebApp сохранен и инициализирован:", {
+            version: webAppRef.current.version,
+            platform: webAppRef.current.platform,
+            hasClose: typeof webAppRef.current.close === 'function'
+          });
+        } else {
+          console.warn("[questionnaire] ⚠️ Telegram WebApp недоступен, пробуем через 100мс...");
+          setTimeout(initWebApp, 100);
+        }
+      };
+      
+      // Пробуем сразу
+      initWebApp();
+      
+      // Также пробуем через небольшую задержку (на случай если скрипт загружается)
+      setTimeout(initWebApp, 100);
+      setTimeout(initWebApp, 500);
     }
   }, []);
 
@@ -190,31 +211,38 @@ export function QuestionnaireFormContent() {
       // Закрываем Mini App - используем ref для надежности
       const closeMiniApp = () => {
         try {
-          // Способ 1: через ref (самый надежный)
-          if (webAppRef.current?.close && typeof webAppRef.current.close === 'function') {
-            webAppRef.current.close();
-            console.log("[questionnaire] ✅ Закрыто через webAppRef.current.close()");
+          // Получаем актуальную ссылку на WebApp
+          let webApp = webAppRef.current;
+          
+          // Если ref пустой, пробуем получить из window
+          if (!webApp && typeof window !== "undefined") {
+            const tg = (window as any).Telegram;
+            webApp = tg?.WebApp;
+            if (webApp) {
+              webAppRef.current = webApp; // Сохраняем в ref
+            }
+          }
+          
+          // Способ 1: через ref
+          if (webApp?.close && typeof webApp.close === 'function') {
+            webApp.close();
+            console.log("[questionnaire] ✅ Закрыто через webApp.close()");
             return true;
           }
           
-          // Способ 2: через window.Telegram.WebApp
-          const tg = (window as any).Telegram;
-          if (tg?.WebApp?.close && typeof tg.WebApp.close === 'function') {
-            tg.WebApp.close();
-            console.log("[questionnaire] ✅ Закрыто через window.Telegram.WebApp.close()");
-            return true;
-          }
-          
-          // Способ 3: прямой доступ
-          if ((window as any).Telegram?.WebApp?.close) {
-            (window as any).Telegram.WebApp.close();
-            console.log("[questionnaire] ✅ Закрыто через прямой доступ");
-            return true;
+          // Способ 2: через window.Telegram.WebApp напрямую
+          if (typeof window !== "undefined") {
+            const tg = (window as any).Telegram;
+            if (tg?.WebApp?.close && typeof tg.WebApp.close === 'function') {
+              tg.WebApp.close();
+              console.log("[questionnaire] ✅ Закрыто через window.Telegram.WebApp.close()");
+              return true;
+            }
           }
           
           console.error("[questionnaire] ❌ Не удалось закрыть Mini App");
           console.error("[questionnaire] webAppRef.current:", webAppRef.current);
-          console.error("[questionnaire] window.Telegram:", (window as any).Telegram);
+          console.error("[questionnaire] window.Telegram:", typeof window !== "undefined" ? (window as any).Telegram : "window недоступен");
           return false;
         } catch (e) {
           console.error("[questionnaire] ❌ Ошибка при закрытии:", e);
@@ -226,6 +254,7 @@ export function QuestionnaireFormContent() {
       if (!closeMiniApp()) {
         setTimeout(() => closeMiniApp(), 300);
         setTimeout(() => closeMiniApp(), 800);
+        setTimeout(() => closeMiniApp(), 1500);
       }
     } catch (err) {
       console.error("[handleSubmit] Ошибка отправки формы:", err);
