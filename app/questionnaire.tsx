@@ -180,46 +180,52 @@ export function QuestionnaireFormContent() {
         const tg = (window as any).Telegram;
         if (tg?.WebApp) {
           const webApp = tg.WebApp;
-          console.log("[questionnaire] WebApp доступен, отправляем данные");
+          console.log("[questionnaire] WebApp доступен, отправляем данные и закрываем");
+          
+          // Подготавливаем данные для отправки
+          const dataToSend = JSON.stringify({ action: "questionnaire_saved" });
+          
+          // Обработчик события отправки данных (если доступен)
+          if (webApp.onEvent) {
+            webApp.onEvent("viewportChanged", () => {
+              console.log("[questionnaire] Viewport changed");
+            });
+          }
           
           try {
-            // Отправляем данные обратно в бот через Telegram WebApp
-            webApp.sendData(JSON.stringify({ action: "questionnaire_saved" }));
-            console.log("[questionnaire] Данные отправлены в бот через sendData");
+            // Отправляем данные в бот
+            console.log("[questionnaire] Отправляем данные:", dataToSend);
+            webApp.sendData(dataToSend);
+            console.log("[questionnaire] ✅ Данные отправлены через sendData");
             
-            // Закрываем Mini App через задержку, чтобы данные успели отправиться
+            // Закрываем Mini App после небольшой задержки
+            // Это гарантирует, что данные успеют отправиться
             setTimeout(() => {
+              console.log("[questionnaire] Закрываем Mini App...");
               try {
                 webApp.close();
-                console.log("[questionnaire] Mini App закрыт через close()");
-              } catch (closeError) {
-                console.error("[questionnaire] Ошибка закрытия Mini App:", closeError);
+                console.log("[questionnaire] ✅ Mini App закрыт");
+              } catch (closeErr) {
+                console.error("[questionnaire] ❌ Ошибка закрытия:", closeErr);
                 // Пробуем альтернативный способ
-                try {
-                  webApp.ready();
+                if (webApp.isExpanded !== undefined) {
                   webApp.expand();
-                  // Если close() не работает, пробуем через MainButton
-                  if (webApp.MainButton) {
-                    webApp.MainButton.hide();
-                  }
-                } catch (e) {
-                  console.error("[questionnaire] Альтернативные способы закрытия не сработали:", e);
                 }
               }
-            }, 1000); // Увеличиваем задержку до 1 секунды
+            }, 500); // Задержка 500мс для гарантии отправки
           } catch (e) {
-            console.error("[questionnaire] Ошибка отправки данных:", e);
-            // Даже если отправка не удалась, пытаемся закрыть
+            console.error("[questionnaire] ❌ Ошибка при отправке данных:", e);
+            // Пытаемся закрыть даже при ошибке
             setTimeout(() => {
               try {
                 webApp.close();
               } catch (closeError) {
-                console.error("[questionnaire] Ошибка закрытия после ошибки отправки:", closeError);
+                console.error("[questionnaire] ❌ Критическая ошибка закрытия:", closeError);
               }
             }, 500);
           }
         } else {
-          console.warn("[questionnaire] Telegram WebApp недоступен");
+          console.warn("[questionnaire] ⚠️ Telegram WebApp недоступен - возможно, открыто не в Telegram");
         }
       }
     } catch (err) {
