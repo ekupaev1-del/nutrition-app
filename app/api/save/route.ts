@@ -3,14 +3,18 @@ import { createClient } from "@supabase/supabase-js";
 
 // Функция для отправки сообщения через Telegram Bot API
 async function sendTelegramMessage(telegramId: number, text: string, keyboard?: any) {
+  console.log("[/api/save] sendTelegramMessage вызвана для telegram_id:", telegramId);
+  
   // Пробуем получить токен из разных источников
   const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
   if (!botToken) {
-    console.error("[/api/save] TELEGRAM_BOT_TOKEN не установлен");
-    console.error("[/api/save] Доступные переменные окружения:", Object.keys(process.env).filter(k => k.includes("TELEGRAM") || k.includes("BOT")));
+    console.error("[/api/save] ❌ TELEGRAM_BOT_TOKEN не установлен");
+    const availableVars = Object.keys(process.env).filter(k => k.includes("TELEGRAM") || k.includes("BOT"));
+    console.error("[/api/save] Доступные переменные окружения с TELEGRAM/BOT:", availableVars.length > 0 ? availableVars : "НЕТ");
     return;
   }
 
+  console.log("[/api/save] ✅ Токен найден, отправляем сообщение...");
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
   const payload: any = {
     chat_id: telegramId,
@@ -23,6 +27,7 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
   }
 
   try {
+    console.log("[/api/save] Отправка запроса в Telegram API...");
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -30,12 +35,12 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
     });
     const result = await response.json();
     if (!result.ok) {
-      console.error("[/api/save] Ошибка отправки сообщения в Telegram:", result);
+      console.error("[/api/save] ❌ Ошибка отправки сообщения в Telegram:", result);
     } else {
-      console.log("[/api/save] ✅ Сообщение отправлено в Telegram");
+      console.log("[/api/save] ✅ Сообщение успешно отправлено в Telegram");
     }
   } catch (error) {
-    console.error("[/api/save] Ошибка при отправке сообщения:", error);
+    console.error("[/api/save] ❌ Ошибка при отправке сообщения:", error);
   }
 }
 
@@ -133,9 +138,11 @@ export async function POST(req: Request) {
 
   const user = data[0];
   console.log("[/api/save] OK updated id:", numericId);
+  console.log("[/api/save] Данные пользователя:", { id: user.id, telegram_id: user.telegram_id });
 
   // Отправляем сообщение с меню через Telegram Bot API
   if (user.telegram_id) {
+    console.log("[/api/save] Отправляем сообщение в Telegram для telegram_id:", user.telegram_id);
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
     const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
     
@@ -161,11 +168,16 @@ export async function POST(req: Request) {
     };
 
     // Отправляем сообщение асинхронно (не блокируем ответ)
-    sendTelegramMessage(user.telegram_id, messageText, keyboard).catch(err => {
-      console.error("[/api/save] Ошибка отправки сообщения:", err);
-    });
+    console.log("[/api/save] Вызываем sendTelegramMessage...");
+    sendTelegramMessage(user.telegram_id, messageText, keyboard)
+      .then(() => {
+        console.log("[/api/save] ✅ sendTelegramMessage завершена");
+      })
+      .catch(err => {
+        console.error("[/api/save] ❌ Ошибка отправки сообщения:", err);
+      });
   } else {
-    console.warn("[/api/save] У пользователя нет telegram_id, сообщение не отправлено");
+    console.warn("[/api/save] ⚠️ У пользователя нет telegram_id, сообщение не отправлено");
   }
 
   return NextResponse.json({ ok: true, id: user.id });
