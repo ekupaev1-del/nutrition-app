@@ -207,13 +207,14 @@ export async function POST(req: Request) {
   console.log("[/api/save] OK updated id:", numericId);
   console.log("[/api/save] Данные пользователя:", { id: user.id, telegram_id: user.telegram_id });
 
-  // Отправляем сообщение с меню через Telegram Bot API
+  // Отправляем сообщение с меню через Telegram Bot API (как в /start)
   if (user.telegram_id) {
-    console.log("[/api/save] Отправляем сообщение в Telegram для telegram_id:", user.telegram_id);
+    console.log("[/api/save] Отправляем меню в Telegram для telegram_id:", user.telegram_id);
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
     const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
     
-    const messageText = "✅ Отлично! Анкета сохранена.\n\n📸 Теперь вы можете отправлять фото, текст и аудио того, что кушаете, и бот проанализирует всё!";
+    // Используем то же сообщение, что и в /start после заполнения анкеты
+    const messageText = "Теперь вы можете отправлять фото, текст и аудио того, что кушаете, и бот проанализирует всё!";
     
     const keyboard = {
       keyboard: [
