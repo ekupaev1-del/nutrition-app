@@ -181,50 +181,42 @@ export function QuestionnaireFormContent() {
         if (tg?.WebApp) {
           const webApp = tg.WebApp;
           console.log("[questionnaire] Закрываем Mini App...");
+          console.log("[questionnaire] WebApp версия:", webApp.version);
+          console.log("[questionnaire] WebApp платформа:", webApp.platform);
           
-          // Пробуем несколько способов закрытия
+          // Используем правильный метод закрытия
           const closeApp = () => {
             try {
-              if (webApp.close) {
+              // Основной способ - close()
+              if (typeof webApp.close === 'function') {
                 webApp.close();
-                console.log("[questionnaire] ✅ Mini App закрыт через close()");
+                console.log("[questionnaire] ✅ Вызван webApp.close()");
                 return true;
               }
             } catch (e) {
-              console.error("[questionnaire] Ошибка close():", e);
+              console.error("[questionnaire] Ошибка при вызове close():", e);
             }
-            
-            // Альтернативный способ
-            try {
-              if (webApp.ready) {
-                webApp.ready();
-              }
-              if (webApp.expand) {
-                webApp.expand();
-              }
-              // Пробуем через BackButton
-              if (webApp.BackButton && webApp.BackButton.hide) {
-                webApp.BackButton.hide();
-              }
-              // Пробуем через MainButton
-              if (webApp.MainButton && webApp.MainButton.hide) {
-                webApp.MainButton.hide();
-              }
-              console.log("[questionnaire] ✅ Альтернативные методы применены");
-            } catch (e) {
-              console.error("[questionnaire] Ошибка альтернативных методов:", e);
-            }
-            
             return false;
           };
           
-          // Пробуем закрыть сразу
-          if (!closeApp()) {
-            // Если не получилось, пробуем через задержку
-            setTimeout(() => {
-              closeApp();
-            }, 500);
-          }
+          // Закрываем через небольшую задержку, чтобы дать время API завершиться
+          setTimeout(() => {
+            if (!closeApp()) {
+              console.warn("[questionnaire] ⚠️ Не удалось закрыть через close(), пробуем альтернативные методы");
+              // Альтернативный способ - отправляем событие закрытия
+              try {
+                if (webApp.ready) {
+                  webApp.ready();
+                }
+                // Пробуем через расширение и затем закрытие
+                if (webApp.expand) {
+                  webApp.expand();
+                }
+              } catch (e) {
+                console.error("[questionnaire] Ошибка альтернативных методов:", e);
+              }
+            }
+          }, 1000); // Увеличиваем задержку до 1 секунды
         } else {
           console.warn("[questionnaire] ⚠️ Telegram WebApp недоступен");
         }

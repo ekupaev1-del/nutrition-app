@@ -31,38 +31,62 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
     console.log("[/api/save] URL:", url.replace(botToken.substring(0, 10), "***"));
     console.log("[/api/save] Payload:", JSON.stringify({ ...payload, text: payload.text.substring(0, 50) + "..." }));
     
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    // Добавляем таймаут для запроса
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд таймаут
     
-    console.log("[/api/save] Ответ получен, статус:", response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[/api/save] ❌ HTTP ошибка от Telegram API:", response.status, errorText);
-      return;
-    }
-    
-    const result = await response.json();
-    console.log("[/api/save] Результат от Telegram API:", JSON.stringify(result, null, 2));
-    
-    if (!result.ok) {
-      console.error("[/api/save] ❌ Ошибка отправки сообщения в Telegram:");
-      console.error("[/api/save] Код ошибки:", result.error_code);
-      console.error("[/api/save] Описание ошибки:", result.description);
-      console.error("[/api/save] Полный ответ:", JSON.stringify(result, null, 2));
-    } else {
-      console.log("[/api/save] ✅ Сообщение успешно отправлено в Telegram");
-      console.log("[/api/save] Message ID:", result.result?.message_id);
-      console.log("[/api/save] Chat ID:", result.result?.chat?.id);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      console.log("[/api/save] Ответ получен, статус:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[/api/save] ❌ HTTP ошибка от Telegram API:", response.status);
+        console.error("[/api/save] Текст ошибки:", errorText);
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error("[/api/save] JSON ошибки:", JSON.stringify(errorJson, null, 2));
+        } catch (e) {
+          // Не JSON, просто текст
+        }
+        return;
+      }
+      
+      const result = await response.json();
+      console.log("[/api/save] Результат от Telegram API:", JSON.stringify(result, null, 2));
+      
+      if (!result.ok) {
+        console.error("[/api/save] ❌ Ошибка отправки сообщения в Telegram:");
+        console.error("[/api/save] Код ошибки:", result.error_code);
+        console.error("[/api/save] Описание ошибки:", result.description);
+        console.error("[/api/save] Полный ответ:", JSON.stringify(result, null, 2));
+      } else {
+        console.log("[/api/save] ✅ Сообщение успешно отправлено в Telegram");
+        console.log("[/api/save] Message ID:", result.result?.message_id);
+        console.log("[/api/save] Chat ID:", result.result?.chat?.id);
+      }
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        console.error("[/api/save] ❌ Таймаут запроса к Telegram API (10 секунд)");
+      } else {
+        throw fetchError; // Пробрасываем дальше
+      }
     }
   } catch (error: any) {
     console.error("[/api/save] ❌ Ошибка при отправке сообщения:", error);
     console.error("[/api/save] Тип ошибки:", error?.constructor?.name);
     console.error("[/api/save] Сообщение ошибки:", error?.message);
-    console.error("[/api/save] Stack:", error?.stack);
+    if (error?.stack) {
+      console.error("[/api/save] Stack:", error.stack.substring(0, 500));
+    }
   }
 }
 
