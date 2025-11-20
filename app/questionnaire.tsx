@@ -182,15 +182,49 @@ export function QuestionnaireFormContent() {
           const webApp = tg.WebApp;
           console.log("[questionnaire] Закрываем Mini App...");
           
-          // Закрываем Mini App сразу - сообщение уже отправлено через /api/save
-          setTimeout(() => {
+          // Пробуем несколько способов закрытия
+          const closeApp = () => {
             try {
-              webApp.close();
-              console.log("[questionnaire] ✅ Mini App закрыт");
-            } catch (closeErr) {
-              console.error("[questionnaire] ❌ Ошибка закрытия:", closeErr);
+              if (webApp.close) {
+                webApp.close();
+                console.log("[questionnaire] ✅ Mini App закрыт через close()");
+                return true;
+              }
+            } catch (e) {
+              console.error("[questionnaire] Ошибка close():", e);
             }
-          }, 300); // Небольшая задержка для гарантии
+            
+            // Альтернативный способ
+            try {
+              if (webApp.ready) {
+                webApp.ready();
+              }
+              if (webApp.expand) {
+                webApp.expand();
+              }
+              // Пробуем через BackButton
+              if (webApp.BackButton && webApp.BackButton.hide) {
+                webApp.BackButton.hide();
+              }
+              // Пробуем через MainButton
+              if (webApp.MainButton && webApp.MainButton.hide) {
+                webApp.MainButton.hide();
+              }
+              console.log("[questionnaire] ✅ Альтернативные методы применены");
+            } catch (e) {
+              console.error("[questionnaire] Ошибка альтернативных методов:", e);
+            }
+            
+            return false;
+          };
+          
+          // Пробуем закрыть сразу
+          if (!closeApp()) {
+            // Если не получилось, пробуем через задержку
+            setTimeout(() => {
+              closeApp();
+            }, 500);
+          }
         } else {
           console.warn("[questionnaire] ⚠️ Telegram WebApp недоступен");
         }

@@ -18,8 +18,8 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
   const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
   const payload: any = {
     chat_id: telegramId,
-    text: text,
-    parse_mode: "HTML"
+    text: text
+    // Убираем parse_mode - может вызывать ошибки с эмодзи
   };
 
   if (keyboard) {
@@ -38,16 +38,25 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
     });
     
     console.log("[/api/save] Ответ получен, статус:", response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[/api/save] ❌ HTTP ошибка от Telegram API:", response.status, errorText);
+      return;
+    }
+    
     const result = await response.json();
-    console.log("[/api/save] Результат от Telegram API:", JSON.stringify(result));
+    console.log("[/api/save] Результат от Telegram API:", JSON.stringify(result, null, 2));
     
     if (!result.ok) {
-      console.error("[/api/save] ❌ Ошибка отправки сообщения в Telegram:", result);
+      console.error("[/api/save] ❌ Ошибка отправки сообщения в Telegram:");
       console.error("[/api/save] Код ошибки:", result.error_code);
       console.error("[/api/save] Описание ошибки:", result.description);
+      console.error("[/api/save] Полный ответ:", JSON.stringify(result, null, 2));
     } else {
       console.log("[/api/save] ✅ Сообщение успешно отправлено в Telegram");
       console.log("[/api/save] Message ID:", result.result?.message_id);
+      console.log("[/api/save] Chat ID:", result.result?.chat?.id);
     }
   } catch (error: any) {
     console.error("[/api/save] ❌ Ошибка при отправке сообщения:", error);
