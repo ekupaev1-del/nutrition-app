@@ -27,15 +27,22 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
   }
 
   try {
+    console.log("[/api/save] ========== НАЧАЛО ОТПРАВКИ В TELEGRAM ==========");
     console.log("[/api/save] Отправка запроса в Telegram API...");
     console.log("[/api/save] URL:", url.replace(botToken.substring(0, 10), "***"));
     console.log("[/api/save] Payload:", JSON.stringify({ ...payload, text: payload.text.substring(0, 50) + "..." }));
+    console.log("[/api/save] Telegram ID:", telegramId);
     
     // Добавляем таймаут для запроса
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд таймаут
+    const timeoutId = setTimeout(() => {
+      console.error("[/api/save] ❌❌❌ ТАЙМАУТ! Запрос не завершился за 10 секунд");
+      controller.abort();
+    }, 10000); // 10 секунд таймаут
     
     try {
+      console.log("[/api/save] Выполняем fetch...");
+      const fetchStartTime = Date.now();
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,7 +50,9 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
         signal: controller.signal
       });
       
+      const fetchDuration = Date.now() - fetchStartTime;
       clearTimeout(timeoutId);
+      console.log("[/api/save] ✅ Fetch завершен за", fetchDuration, "мс");
       console.log("[/api/save] Ответ получен, статус:", response.status);
       
       if (!response.ok) {
@@ -59,34 +68,46 @@ async function sendTelegramMessage(telegramId: number, text: string, keyboard?: 
         return;
       }
       
+      console.log("[/api/save] Парсим JSON ответ...");
       const result = await response.json();
-      console.log("[/api/save] Результат от Telegram API:", JSON.stringify(result, null, 2));
+      console.log("[/api/save] ========== РЕЗУЛЬТАТ ОТ TELEGRAM API ==========");
+      console.log("[/api/save] Результат:", JSON.stringify(result, null, 2));
+      console.log("[/api/save] result.ok:", result.ok);
       
       if (!result.ok) {
         console.error("[/api/save] ❌ Ошибка отправки сообщения в Telegram:");
         console.error("[/api/save] Код ошибки:", result.error_code);
         console.error("[/api/save] Описание ошибки:", result.description);
         console.error("[/api/save] Полный ответ:", JSON.stringify(result, null, 2));
+        console.log("[/api/save] ========== КОНЕЦ (ОШИБКА) ==========");
       } else {
         console.log("[/api/save] ✅ Сообщение успешно отправлено в Telegram");
         console.log("[/api/save] Message ID:", result.result?.message_id);
         console.log("[/api/save] Chat ID:", result.result?.chat?.id);
+        console.log("[/api/save] ========== КОНЕЦ (УСПЕХ) ==========");
       }
     } catch (fetchError: any) {
       clearTimeout(timeoutId);
+      console.error("[/api/save] ========== ОШИБКА В FETCH ==========");
       if (fetchError.name === 'AbortError') {
         console.error("[/api/save] ❌ Таймаут запроса к Telegram API (10 секунд)");
       } else {
+        console.error("[/api/save] ❌ Ошибка fetch:", fetchError);
+        console.error("[/api/save] Имя ошибки:", fetchError.name);
+        console.error("[/api/save] Сообщение:", fetchError.message);
         throw fetchError; // Пробрасываем дальше
       }
+      console.log("[/api/save] ========== КОНЕЦ (FETCH ERROR) ==========");
     }
   } catch (error: any) {
+    console.error("[/api/save] ========== КРИТИЧЕСКАЯ ОШИБКА ==========");
     console.error("[/api/save] ❌ Ошибка при отправке сообщения:", error);
     console.error("[/api/save] Тип ошибки:", error?.constructor?.name);
     console.error("[/api/save] Сообщение ошибки:", error?.message);
     if (error?.stack) {
       console.error("[/api/save] Stack:", error.stack.substring(0, 500));
     }
+    console.log("[/api/save] ========== КОНЕЦ (CRITICAL ERROR) ==========");
   }
 }
 
