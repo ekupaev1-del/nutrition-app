@@ -31,34 +31,65 @@ export function QuestionnaireFormContent() {
 
   // Сохраняем ссылку на WebApp при монтировании и инициализируем его
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Ждем, пока Telegram WebApp будет доступен
-      const initWebApp = () => {
-        const tg = (window as any).Telegram;
-        if (tg?.WebApp) {
-          webAppRef.current = tg.WebApp;
-          // Инициализируем WebApp
-          if (webAppRef.current.ready) {
-            webAppRef.current.ready();
+    if (typeof window === "undefined") return;
+    
+    // Функция для получения WebApp
+    const getWebApp = () => {
+      // Пробуем разные способы доступа
+      const tg = (window as any).Telegram;
+      if (tg?.WebApp) {
+        return tg.WebApp;
+      }
+      
+      // Пробуем через глобальный объект
+      if ((window as any).Telegram?.WebApp) {
+        return (window as any).Telegram.WebApp;
+      }
+      
+      return null;
+    };
+    
+    // Ждем, пока Telegram WebApp будет доступен
+    const initWebApp = (attempt = 0) => {
+      const webApp = getWebApp();
+      
+      if (webApp) {
+        webAppRef.current = webApp;
+        // Инициализируем WebApp
+        try {
+          if (typeof webApp.ready === 'function') {
+            webApp.ready();
           }
-          console.log("[questionnaire] ✅ WebApp сохранен и инициализирован:", {
-            version: webAppRef.current.version,
-            platform: webAppRef.current.platform,
-            hasClose: typeof webAppRef.current.close === 'function'
-          });
-        } else {
-          console.warn("[questionnaire] ⚠️ Telegram WebApp недоступен, пробуем через 100мс...");
-          setTimeout(initWebApp, 100);
+          if (typeof webApp.expand === 'function') {
+            webApp.expand();
+          }
+        } catch (e) {
+          console.warn("[questionnaire] Ошибка инициализации WebApp:", e);
         }
-      };
-      
-      // Пробуем сразу
-      initWebApp();
-      
-      // Также пробуем через небольшую задержку (на случай если скрипт загружается)
-      setTimeout(initWebApp, 100);
-      setTimeout(initWebApp, 500);
-    }
+        
+        console.log("[questionnaire] ✅ WebApp сохранен и инициализирован:", {
+          version: webApp.version,
+          platform: webApp.platform,
+          hasClose: typeof webApp.close === 'function',
+          attempt: attempt
+        });
+      } else {
+        if (attempt < 10) { // Пробуем до 10 раз
+          console.log(`[questionnaire] ⚠️ Telegram WebApp недоступен, попытка ${attempt + 1}/10...`);
+          setTimeout(() => initWebApp(attempt + 1), 200);
+        } else {
+          console.error("[questionnaire] ❌ Telegram WebApp не загрузился после 10 попыток");
+        }
+      }
+    };
+    
+    // Пробуем сразу
+    initWebApp(0);
+    
+    // Также слушаем событие загрузки
+    window.addEventListener('load', () => {
+      setTimeout(() => initWebApp(0), 100);
+    });
   }, []);
 
   // Проверяем id при монтировании
@@ -208,42 +239,50 @@ export function QuestionnaireFormContent() {
       setLoading(false);
       console.log("[handleSubmit] Данные успешно сохранены");
 
-      // Закрываем Mini App - используем ref для надежности
-      const closeMiniApp = () => {
+      // Закрываем Mini App - используем все возможные способы
+      const closeMiniApp = (attempt = 0) => {
         try {
-          // Получаем актуальную ссылку на WebApp
-          let webApp = webAppRef.current;
-          
-          // Если ref пустой, пробуем получить из window
-          if (!webApp && typeof window !== "undefined") {
-            const tg = (window as any).Telegram;
-            webApp = tg?.WebApp;
-            if (webApp) {
-              webAppRef.current = webApp; // Сохраняем в ref
+          // Функция для получения WebApp
+          const getWebApp = () => {
+            // Способ 1: через ref
+            if (webAppRef.current) {
+              return webAppRef.current;
             }
-          }
+            
+            // Способ 2: через window.Telegram.WebApp
+            if (typeof window !== "undefined") {
+              const tg = (window as any).Telegram;
+              if (tg?.WebApp) {
+                webAppRef.current = tg.WebApp; // Сохраняем в ref
+                return tg.WebApp;
+              }
+            }
+            
+            return null;
+          };
           
-          // Способ 1: через ref
-          if (webApp?.close && typeof webApp.close === 'function') {
-            webApp.close();
-            console.log("[questionnaire] ✅ Закрыто через webApp.close()");
-            return true;
-          }
+          const webApp = getWebApp();
           
-          // Способ 2: через window.Telegram.WebApp напрямую
-          if (typeof window !== "undefined") {
-            const tg = (window as any).Telegram;
-            if (tg?.WebApp?.close && typeof tg.WebApp.close === 'function') {
-              tg.WebApp.close();
-              console.log("[questionnaire] ✅ Закрыто через window.Telegram.WebApp.close()");
+          if (webApp && typeof webApp.close === 'function') {
+            try {
+              webApp.close();
+              console.log("[questionnaire] ✅ Mini App закрыт (попытка " + (attempt + 1) + ")");
               return true;
+            } catch (closeError) {
+              console.error("[questionnaire] Ошибка при вызове close():", closeError);
             }
           }
           
-          console.error("[questionnaire] ❌ Не удалось закрыть Mini App");
-          console.error("[questionnaire] webAppRef.current:", webAppRef.current);
-          console.error("[questionnaire] window.Telegram:", typeof window !== "undefined" ? (window as any).Telegram : "window недоступен");
-          return false;
+          // Если не получилось и попыток меньше 5, пробуем еще раз
+          if (attempt < 4) {
+            console.log(`[questionnaire] Попытка ${attempt + 1} не удалась, пробуем еще раз...`);
+            console.log("[questionnaire] webAppRef.current:", webAppRef.current);
+            console.log("[questionnaire] window.Telegram:", typeof window !== "undefined" ? (window as any).Telegram : "window недоступен");
+            return false; // Вернем false, чтобы вызвать через setTimeout
+          } else {
+            console.error("[questionnaire] ❌ Не удалось закрыть Mini App после 5 попыток");
+            return false;
+          }
         } catch (e) {
           console.error("[questionnaire] ❌ Ошибка при закрытии:", e);
           return false;
@@ -251,10 +290,11 @@ export function QuestionnaireFormContent() {
       };
       
       // Вызываем сразу и через задержки для гарантии
-      if (!closeMiniApp()) {
-        setTimeout(() => closeMiniApp(), 300);
-        setTimeout(() => closeMiniApp(), 800);
-        setTimeout(() => closeMiniApp(), 1500);
+      if (!closeMiniApp(0)) {
+        setTimeout(() => closeMiniApp(1), 500);
+        setTimeout(() => closeMiniApp(2), 1000);
+        setTimeout(() => closeMiniApp(3), 2000);
+        setTimeout(() => closeMiniApp(4), 3000);
       }
     } catch (err) {
       console.error("[handleSubmit] Ошибка отправки формы:", err);
