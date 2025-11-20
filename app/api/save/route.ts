@@ -214,7 +214,7 @@ export async function POST(req: Request) {
     const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
     
     // Используем то же сообщение, что и в /start после заполнения анкеты
-    const messageText = "Теперь вы можете отправлять фото, текст и аудио того, что кушаете, и бот проанализирует всё!";
+    const messageText = "Добро пожаловать! Выберите действие:";
     
     const keyboard = {
       keyboard: [
