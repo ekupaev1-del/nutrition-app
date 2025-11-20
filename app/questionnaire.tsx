@@ -182,20 +182,43 @@ export function QuestionnaireFormContent() {
         if (tg?.WebApp) {
           const webApp = tg.WebApp;
           console.log("[questionnaire] Закрываем Mini App...");
+          console.log("[questionnaire] WebApp версия:", webApp.version);
+          console.log("[questionnaire] WebApp платформа:", webApp.platform);
           
-          // Закрываем через задержку, чтобы дать время API отправить сообщение
-          setTimeout(() => {
+          // Функция закрытия Mini App
+          const closeMiniApp = () => {
             try {
-              if (typeof webApp.close === 'function') {
+              // Основной способ - close()
+              if (webApp && typeof webApp.close === 'function') {
                 webApp.close();
-                console.log("[questionnaire] ✅ Mini App закрыт");
-              } else {
-                console.warn("[questionnaire] ⚠️ webApp.close не является функцией");
+                console.log("[questionnaire] ✅ Вызван webApp.close()");
+                return true;
               }
+              
+              // Альтернативный способ - через расширение и закрытие
+              if (webApp.expand) {
+                webApp.expand();
+              }
+              
+              // Пробуем еще раз close
+              if (webApp && typeof webApp.close === 'function') {
+                webApp.close();
+                console.log("[questionnaire] ✅ Вызван webApp.close() после expand");
+                return true;
+              }
+              
+              console.warn("[questionnaire] ⚠️ Не удалось закрыть Mini App");
+              return false;
             } catch (e) {
-              console.error("[questionnaire] ❌ Ошибка закрытия Mini App:", e);
+              console.error("[questionnaire] ❌ Ошибка при закрытии Mini App:", e);
+              return false;
             }
-          }, 2000); // Увеличиваем задержку до 2 секунд для гарантии отправки сообщения
+          };
+          
+          // Закрываем через небольшую задержку, чтобы дать время API отправить сообщение
+          setTimeout(() => {
+            closeMiniApp();
+          }, 1000); // 1 секунда должно быть достаточно
         } else {
           console.warn("[questionnaire] ⚠️ Telegram WebApp недоступен");
         }
