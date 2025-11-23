@@ -1338,10 +1338,13 @@ bot.on("photo", async (ctx) => {
         ctx.chat!.id,
         processingMsg.message_id,
         undefined,
-        analysis.message
+        (analysis as NotFoodResponse).message
       );
       return;
     }
+
+    // Type guard: после проверки analysis гарантированно MealAnalysis
+    const mealAnalysis = analysis as MealAnalysis;
 
     // Убеждаемся, что пользователь существует
     const { data: existingUser } = await supabase
@@ -1372,11 +1375,11 @@ bot.on("photo", async (ctx) => {
     // Сохраняем в базу
     const { error: insertError } = await supabase.from("diary").insert({
       user_id: telegram_id,
-      meal_text: analysis.description,
-      calories: analysis.calories,
-      protein: analysis.protein,
-      fat: analysis.fat,
-      carbs: analysis.carbs
+      meal_text: mealAnalysis.description,
+      calories: mealAnalysis.calories,
+      protein: mealAnalysis.protein,
+      fat: mealAnalysis.fat,
+      carbs: mealAnalysis.carbs
     });
 
     if (insertError) {
