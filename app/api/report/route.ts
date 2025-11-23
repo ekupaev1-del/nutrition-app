@@ -36,6 +36,7 @@ export async function GET(req: Request) {
   }
 
   // Получаем приемы пищи за период
+  // Используем правильное сравнение дат с учетом часового пояса
   const { data: meals, error } = await supabase
     .from("diary")
     .select("*")
@@ -43,6 +44,13 @@ export async function GET(req: Request) {
     .gte("created_at", start)
     .lte("created_at", end)
     .order("created_at", { ascending: true });
+
+  console.log("[/api/report] Запрос:", {
+    user_id: user.telegram_id,
+    start,
+    end,
+    found_meals: meals?.length || 0
+  });
 
   if (error) {
     console.error("[/api/report] Ошибка:", error);

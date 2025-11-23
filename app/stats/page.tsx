@@ -86,30 +86,41 @@ function StatsPageContent() {
     setLoading(true);
     setError(null);
     try {
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
+      // Используем локальное время для правильной работы с часовыми поясами
+      const now = new Date();
+      const timezoneOffset = now.getTimezoneOffset() * 60000; // в миллисекундах
+      
       let start = new Date();
+      let end = new Date();
 
       switch (period) {
         case "today":
           start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
           break;
         case "week":
           start.setDate(start.getDate() - 7);
           start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
           break;
         case "month":
           start.setMonth(start.getMonth() - 1);
           start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
           break;
         case "year":
           start.setFullYear(start.getFullYear() - 1);
           start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
           break;
       }
 
+      // Конвертируем в ISO строки с учетом локального времени
+      const startISO = new Date(start.getTime() - timezoneOffset).toISOString();
+      const endISO = new Date(end.getTime() - timezoneOffset).toISOString();
+
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${today.toISOString()}`
+        `/api/report?userId=${userId}&start=${startISO}&end=${endISO}`
       );
       const data = await response.json();
       if (data.error) {
