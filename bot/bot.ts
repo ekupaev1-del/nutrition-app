@@ -112,9 +112,10 @@ bot.start(async (ctx) => {
 
       // Отправляем приветственное сообщение с картинкой
       // Картинка находится в public/images/welcome.png
-      const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome.png";
+      // Добавляем timestamp для обхода кэша
+      const welcomeImageUrl = `https://nutrition-app4.vercel.app/images/welcome.png?t=${Date.now()}`;
       
-      // Текст с форматированием (HTML)
+      // Текст с форматированием (HTML) - точно как на скрине
       const welcomeText = `💪 <b>Добро пожаловать в Step One.</b>
 
 Самое тяжелое вы уже сделали - первый шаг
