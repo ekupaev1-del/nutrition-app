@@ -129,6 +129,7 @@ bot.start(async (ctx) => {
       
       // Если картинка не загружена, используем fallback без картинки
       try {
+        console.log("[bot] Отправка приветственного сообщения с картинкой:", welcomeImageUrl);
         await ctx.replyWithPhoto(
           welcomeImageUrl,
           {
@@ -146,6 +147,7 @@ bot.start(async (ctx) => {
             }
           }
         );
+        console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно");
       } catch (photoError: any) {
         // Если картинка не загружена, отправляем сообщение без картинки
         console.error("[bot] Ошибка отправки картинки:", photoError);
