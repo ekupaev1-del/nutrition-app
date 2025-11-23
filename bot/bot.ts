@@ -111,8 +111,8 @@ bot.start(async (ctx) => {
       console.log(`[bot] Показываю приветствие для нового пользователя`);
 
       // Отправляем приветственное сообщение с картинкой
-      // Используем новое имя файла для обхода кэша
-      const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome-new.png";
+      // Используем оптимизированную версию для быстрой отправки
+      const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome-optimized.png";
       
       // Текст с форматированием (HTML) - точно как на скрине
       const welcomeText = `💪 <b>Добро пожаловать в Step One.</b>
@@ -127,15 +127,25 @@ bot.start(async (ctx) => {
 Чтобы мне определить, как вам правильно питаться,
 ответьте на пару вопросов↓`;
       
-      // Пробуем отправить картинку - сначала через URL, если не получится - загрузим и отправим как файл
+      // Отправляем картинку напрямую как файл (URL не работает для больших файлов)
       try {
-        console.log("[bot] Отправка приветственного сообщения с картинкой");
+        console.log("[bot] Загрузка и отправка картинки...");
         console.log("[bot] URL картинки:", welcomeImageUrl);
-        console.log("[bot] Telegram ID:", ctx.from?.id);
         
-        // Пробуем сначала через URL
-        const photoResult = await ctx.replyWithPhoto(
-          welcomeImageUrl,
+        // Загружаем картинку
+        const imageResponse = await fetch(welcomeImageUrl);
+        if (!imageResponse.ok) {
+          throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
+        }
+        const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+        
+        const sizeMB = (imageBuffer.length / 1024 / 1024).toFixed(2);
+        console.log("[bot] Картинка загружена, размер:", sizeMB, "МБ");
+        
+        // Отправляем через ctx.telegram.sendPhoto с Buffer
+        const photoResult = await ctx.telegram.sendPhoto(
+          ctx.chat!.id,
+          { source: imageBuffer, filename: "welcome.png" },
           {
             caption: welcomeText,
             parse_mode: "HTML",
@@ -151,50 +161,11 @@ bot.start(async (ctx) => {
             }
           }
         );
-        console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно (через URL)");
-        console.log("[bot] Результат отправки:", JSON.stringify(photoResult, null, 2));
-      } catch (photoError: any) {
-        console.error("[bot] ❌ ОШИБКА отправки картинки через URL!");
-        console.error("[bot] URL картинки:", welcomeImageUrl);
-        console.error("[bot] Код ошибки:", photoError?.response?.error_code);
-        console.error("[bot] Описание ошибки:", photoError?.response?.description);
-        
-        // Пробуем загрузить картинку и отправить как файл
-        try {
-          console.log("[bot] Пробуем загрузить картинку и отправить как файл...");
-          const imageResponse = await fetch(welcomeImageUrl);
-          if (!imageResponse.ok) {
-            throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
-          }
-          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-          
-          console.log("[bot] Картинка загружена, размер:", imageBuffer.length, "байт");
-          
-          // Отправляем через ctx.telegram.sendPhoto с Buffer
-          const photoResult = await ctx.telegram.sendPhoto(
-            ctx.chat!.id,
-            { source: imageBuffer, filename: "welcome.png" },
-            {
-              caption: welcomeText,
-              parse_mode: "HTML",
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    {
-                      text: "📝 Заполнить анкету",
-                      web_app: { url }
-                    }
-                  ]
-                ]
-              }
-            }
-          );
-          console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно (как файл)");
-          return; // Успешно отправили, выходим
-        } catch (fileError: any) {
-          console.error("[bot] ❌ ОШИБКА отправки картинки как файл!");
-          console.error("[bot] Ошибка:", fileError?.message || fileError);
-        }
+        console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно");
+        return; // Успешно отправили, выходим
+      } catch (fileError: any) {
+        console.error("[bot] ❌ ОШИБКА отправки картинки!");
+        console.error("[bot] Ошибка:", fileError?.message || fileError);
         
         // Если картинка не загружена, отправляем сообщение без картинки
         try {
