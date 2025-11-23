@@ -111,8 +111,8 @@ bot.start(async (ctx) => {
       console.log(`[bot] Показываю приветствие для нового пользователя`);
 
       // Отправляем приветственное сообщение с картинкой
-      // Картинка находится в public/images/welcome.png
-      const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome.png";
+      // Используем новое имя файла для обхода кэша
+      const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome-new.png";
       
       // Текст с форматированием (HTML) - точно как на скрине
       const welcomeText = `💪 <b>Добро пожаловать в Step One.</b>
