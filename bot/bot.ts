@@ -184,6 +184,7 @@ bot.start(async (ctx) => {
           return;
         } catch (fileError: any) {
           console.error("[bot] ❌ Ошибка отправки картинки:", fileError?.message || fileError);
+        }
         
         // Если картинка не загружена, отправляем сообщение без картинки
         try {
