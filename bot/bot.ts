@@ -550,6 +550,15 @@ async function analyzeFoodWithOpenAI(userInput: string): Promise<MealAnalysis | 
       return null;
     }
 
+    // Проверяем, про еду ли идет речь
+    if (parsed.isFood === false) {
+      console.log(`[OpenAI] Текст не про еду: ${parsed.whatIsIt}`);
+      return {
+        isNotFood: true,
+        message: parsed.message || `Это не про еду, это про ${parsed.whatIsIt || "что-то другое"} 😊`
+      };
+    }
+
     const result = {
       description: parsed.description || userInput,
       calories: Number(parsed.calories) || 0,
@@ -987,6 +996,17 @@ bot.on("text", async (ctx) => {
         processingMsg.message_id,
         undefined,
         "❌ Не удалось проанализировать еду. Попробуйте описать подробнее."
+      );
+      return;
+    }
+
+    // Проверяем, про еду ли идет речь
+    if ('isNotFood' in analysis && analysis.isNotFood) {
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        processingMsg.message_id,
+        undefined,
+        analysis.message
       );
       return;
     }
@@ -1474,6 +1494,17 @@ bot.on("voice", async (ctx) => {
         processingMsg.message_id,
         undefined,
         "❌ Не удалось проанализировать описание еды. Попробуйте описать подробнее."
+      );
+      return;
+    }
+
+    // Проверяем, про еду ли идет речь
+    if ('isNotFood' in analysis && analysis.isNotFood) {
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        processingMsg.message_id,
+        undefined,
+        analysis.message
       );
       return;
     }
