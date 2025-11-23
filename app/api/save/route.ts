@@ -224,10 +224,9 @@ export async function POST(req: Request) {
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
     const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
     
-    // Сообщение после сохранения анкеты - согласно скриншоту 2
+    // Сообщение после сохранения анкеты - согласно скриншоту
     const messageText = `✅ Отлично! Сохранил все ваши данные.
-
-Теперь вы можете отправлять мне что вы кушали.
+Теперь вы можете отправлять мне, что вы кушали.
 
 <u>Сделать это можно тремя способами:</u>
 ✏️ Текстом
