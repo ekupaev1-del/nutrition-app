@@ -166,14 +166,14 @@ bot.start(async (ctx) => {
           if (!imageResponse.ok) {
             throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
           }
-          const imageBuffer = await imageResponse.arrayBuffer();
-          const imageStream = Readable.from(Buffer.from(imageBuffer));
+          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
           
-          console.log("[bot] Картинка загружена, размер:", imageBuffer.byteLength, "байт");
+          console.log("[bot] Картинка загружена, размер:", imageBuffer.length, "байт");
           
-          const photoFile = new InputFile(imageStream, "welcome.png");
-          const photoResult = await ctx.replyWithPhoto(
-            photoFile,
+          // Отправляем через ctx.telegram.sendPhoto с Buffer
+          const photoResult = await ctx.telegram.sendPhoto(
+            ctx.chat!.id,
+            { source: imageBuffer, filename: "welcome.png" },
             {
               caption: welcomeText,
               parse_mode: "HTML",
@@ -190,11 +190,13 @@ bot.start(async (ctx) => {
             }
           );
           console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно (как файл)");
+          return; // Успешно отправили, выходим
         } catch (fileError: any) {
           console.error("[bot] ❌ ОШИБКА отправки картинки как файл!");
           console.error("[bot] Ошибка:", fileError?.message || fileError);
-          
-          // Если картинка не загружена, отправляем сообщение без картинки
+        }
+        
+        // Если картинка не загружена, отправляем сообщение без картинки
         try {
           await ctx.reply(
             welcomeText,
