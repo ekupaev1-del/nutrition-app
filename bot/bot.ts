@@ -221,9 +221,26 @@ bot.start(async (ctx) => {
     });
 
     console.log(`[bot] /start успешно завершён для id: ${userId}`);
-  } catch (err) {
+  } catch (err: any) {
     console.error("[bot] Критическая ошибка /start:", err);
-    ctx.reply("Произошла ошибка, попробуйте позже.");
+    
+    // Если пользователь заблокировал бота - просто логируем, не пытаемся отправить сообщение
+    if (err?.response?.error_code === 403 && err?.response?.description?.includes("blocked")) {
+      console.warn(`[bot] Пользователь ${ctx.from?.id} заблокировал бота, пропускаем отправку сообщения`);
+      return;
+    }
+    
+    // Для других ошибок пытаемся отправить сообщение
+    try {
+      await ctx.reply("Произошла ошибка, попробуйте позже.");
+    } catch (replyErr: any) {
+      // Если и это не получилось (например, пользователь заблокирован) - просто логируем
+      if (replyErr?.response?.error_code === 403) {
+        console.warn(`[bot] Не удалось отправить сообщение об ошибке - пользователь заблокирован`);
+      } else {
+        console.error("[bot] Ошибка отправки сообщения об ошибке:", replyErr);
+      }
+    }
   }
 });
 
