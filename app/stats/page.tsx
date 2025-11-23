@@ -430,8 +430,8 @@ function StatsPageContent() {
                   return (
                     <div key={meal.id}>
                       {showDate && (
-                        <div className="text-sm font-medium text-textPrimary mb-2 mt-4 first:mt-0">
-                          🗓️{formattedDate} {dayName}
+                        <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
+                          🗓️ {formattedDate} {dayName}
                         </div>
                       )}
                       <div className="p-4 border border-gray-200 rounded-xl">
