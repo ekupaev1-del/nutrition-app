@@ -127,25 +127,11 @@ bot.start(async (ctx) => {
 Чтобы мне определить, как вам правильно питаться,
 ответьте на пару вопросов↓`;
       
-      // Отправляем картинку напрямую как файл (URL не работает для больших файлов)
+      // Пробуем отправить картинку через URL (быстрее для оптимизированных файлов)
       try {
-        console.log("[bot] Загрузка и отправка картинки...");
-        console.log("[bot] URL картинки:", welcomeImageUrl);
-        
-        // Загружаем картинку
-        const imageResponse = await fetch(welcomeImageUrl);
-        if (!imageResponse.ok) {
-          throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
-        }
-        const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-        
-        const sizeMB = (imageBuffer.length / 1024 / 1024).toFixed(2);
-        console.log("[bot] Картинка загружена, размер:", sizeMB, "МБ");
-        
-        // Отправляем через ctx.telegram.sendPhoto с Buffer
-        const photoResult = await ctx.telegram.sendPhoto(
-          ctx.chat!.id,
-          { source: imageBuffer, filename: "welcome.png" },
+        console.log("[bot] Отправка картинки через URL...");
+        await ctx.replyWithPhoto(
+          welcomeImageUrl,
           {
             caption: welcomeText,
             parse_mode: "HTML",
@@ -161,11 +147,43 @@ bot.start(async (ctx) => {
             }
           }
         );
-        console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно");
-        return; // Успешно отправили, выходим
-      } catch (fileError: any) {
-        console.error("[bot] ❌ ОШИБКА отправки картинки!");
-        console.error("[bot] Ошибка:", fileError?.message || fileError);
+        console.log("[bot] ✅ Картинка отправлена через URL");
+        return;
+      } catch (urlError: any) {
+        // Если URL не работает, загружаем и отправляем как файл
+        console.log("[bot] URL не сработал, загружаем как файл...");
+        try {
+          const imageResponse = await fetch(welcomeImageUrl);
+          if (!imageResponse.ok) {
+            throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
+          }
+          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+          
+          const sizeKB = (imageBuffer.length / 1024).toFixed(0);
+          console.log("[bot] Картинка загружена, размер:", sizeKB, "КБ");
+          
+          await ctx.telegram.sendPhoto(
+            ctx.chat!.id,
+            { source: imageBuffer, filename: "welcome.png" },
+            {
+              caption: welcomeText,
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: "📝 Заполнить анкету",
+                      web_app: { url }
+                    }
+                  ]
+                ]
+              }
+            }
+          );
+          console.log("[bot] ✅ Картинка отправлена как файл");
+          return;
+        } catch (fileError: any) {
+          console.error("[bot] ❌ Ошибка отправки картинки:", fileError?.message || fileError);
         
         // Если картинка не загружена, отправляем сообщение без картинки
         try {
