@@ -10,7 +10,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, ".env") });
 
 // Telegram + Supabase + OpenAI
-import { Telegraf } from "telegraf";
+import { Telegraf, InputFile } from "telegraf";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
@@ -127,12 +127,13 @@ bot.start(async (ctx) => {
 Чтобы мне определить, как вам правильно питаться,
 ответьте на пару вопросов↓`;
       
-      // Если картинка не загружена, используем fallback без картинки
+      // Пробуем отправить картинку - сначала через URL, если не получится - загрузим и отправим как файл
       try {
         console.log("[bot] Отправка приветственного сообщения с картинкой");
         console.log("[bot] URL картинки:", welcomeImageUrl);
         console.log("[bot] Telegram ID:", ctx.from?.id);
         
+        // Пробуем сначала через URL
         const photoResult = await ctx.replyWithPhoto(
           welcomeImageUrl,
           {
@@ -150,9 +151,48 @@ bot.start(async (ctx) => {
             }
           }
         );
-        console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно");
+        console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно (через URL)");
         console.log("[bot] Результат отправки:", JSON.stringify(photoResult, null, 2));
       } catch (photoError: any) {
+        console.error("[bot] ❌ ОШИБКА отправки картинки через URL!");
+        console.error("[bot] URL картинки:", welcomeImageUrl);
+        console.error("[bot] Код ошибки:", photoError?.response?.error_code);
+        console.error("[bot] Описание ошибки:", photoError?.response?.description);
+        
+        // Пробуем загрузить картинку и отправить как файл
+        try {
+          console.log("[bot] Пробуем загрузить картинку и отправить как файл...");
+          const imageResponse = await fetch(welcomeImageUrl);
+          if (!imageResponse.ok) {
+            throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
+          }
+          const imageBuffer = await imageResponse.arrayBuffer();
+          const imageStream = Readable.from(Buffer.from(imageBuffer));
+          
+          console.log("[bot] Картинка загружена, размер:", imageBuffer.byteLength, "байт");
+          
+          const photoFile = new InputFile(imageStream, "welcome.png");
+          const photoResult = await ctx.replyWithPhoto(
+            photoFile,
+            {
+              caption: welcomeText,
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: "📝 Заполнить анкету",
+                      web_app: { url }
+                    }
+                  ]
+                ]
+              }
+            }
+          );
+          console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно (как файл)");
+        } catch (fileError: any) {
+          console.error("[bot] ❌ ОШИБКА отправки картинки как файл!");
+          console.error("[bot] Ошибка:", fileError?.message || fileError);
         // Если картинка не загружена, отправляем сообщение без картинки
         console.error("[bot] ❌ ОШИБКА отправки картинки!");
         console.error("[bot] URL картинки:", welcomeImageUrl);
