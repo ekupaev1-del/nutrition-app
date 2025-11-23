@@ -86,19 +86,19 @@ function StatsPageContent() {
     setLoading(true);
     setError(null);
     try {
-      // Используем локальное время для правильной работы с часовыми поясами
       const now = new Date();
-      const timezoneOffset = now.getTimezoneOffset() * 60000; // в миллисекундах
-      
-      let start = new Date();
-      let end = new Date();
+      let start = new Date(now);
+      let end = new Date(now);
 
       switch (period) {
         case "today":
+          // Начало сегодняшнего дня (00:00:00)
           start.setHours(0, 0, 0, 0);
+          // Конец сегодняшнего дня (23:59:59.999)
           end.setHours(23, 59, 59, 999);
           break;
         case "week":
+          // 7 дней назад от начала сегодняшнего дня
           start.setDate(start.getDate() - 7);
           start.setHours(0, 0, 0, 0);
           end.setHours(23, 59, 59, 999);
@@ -115,12 +115,9 @@ function StatsPageContent() {
           break;
       }
 
-      // Конвертируем в ISO строки с учетом локального времени
-      const startISO = new Date(start.getTime() - timezoneOffset).toISOString();
-      const endISO = new Date(end.getTime() - timezoneOffset).toISOString();
-
+      // Конвертируем в ISO строки - Supabase работает с UTC
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${startISO}&end=${endISO}`
+        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}`
       );
       const data = await response.json();
       if (data.error) {
