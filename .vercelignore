@@ -1,0 +1,4 @@
+# Vercel ignore file
+bot/
+*.log
+
