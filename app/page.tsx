@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { QuestionnaireFormContent } from "./questionnaire";
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 function LoadingFallback() {
   return (
