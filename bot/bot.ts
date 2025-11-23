@@ -129,8 +129,11 @@ bot.start(async (ctx) => {
       
       // Если картинка не загружена, используем fallback без картинки
       try {
-        console.log("[bot] Отправка приветственного сообщения с картинкой:", welcomeImageUrl);
-        await ctx.replyWithPhoto(
+        console.log("[bot] Отправка приветственного сообщения с картинкой");
+        console.log("[bot] URL картинки:", welcomeImageUrl);
+        console.log("[bot] Telegram ID:", ctx.from?.id);
+        
+        const photoResult = await ctx.replyWithPhoto(
           welcomeImageUrl,
           {
             caption: welcomeText,
@@ -148,11 +151,14 @@ bot.start(async (ctx) => {
           }
         );
         console.log("[bot] ✅ Приветственное сообщение с картинкой отправлено успешно");
+        console.log("[bot] Результат отправки:", JSON.stringify(photoResult, null, 2));
       } catch (photoError: any) {
         // Если картинка не загружена, отправляем сообщение без картинки
-        console.error("[bot] Ошибка отправки картинки:", photoError);
+        console.error("[bot] ❌ ОШИБКА отправки картинки!");
         console.error("[bot] URL картинки:", welcomeImageUrl);
-        console.error("[bot] Детали ошибки:", JSON.stringify(photoError, null, 2));
+        console.error("[bot] Код ошибки:", photoError?.response?.error_code);
+        console.error("[bot] Описание ошибки:", photoError?.response?.description);
+        console.error("[bot] Полная ошибка:", JSON.stringify(photoError, null, 2));
         
         // Пробуем отправить без картинки
         try {
