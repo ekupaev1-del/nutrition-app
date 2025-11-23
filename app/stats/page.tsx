@@ -88,6 +88,13 @@ function StatsPageContent() {
     setLoading(true);
     setError(null);
     try {
+      // Получаем дневную норму пользователя
+      const userResponse = await fetch(`/api/user?userId=${userId}`);
+      const userData = await userResponse.json();
+      if (userData.calories) {
+        setDailyNorm(userData.calories);
+      }
+
       const now = new Date();
       let start = new Date(now);
       let end = new Date(now);
@@ -127,6 +134,7 @@ function StatsPageContent() {
       } else {
         setReportData(data.meals || []);
         setReportTotals(data.totals || null);
+        setReportPeriod(period);
         setView("report");
       }
     } catch (err) {
@@ -382,6 +390,8 @@ function StatsPageContent() {
                           const end = new Date(reportEndDate);
                           const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                           periodNorm = dailyNorm * days;
+                        } else if (reportPeriod === "today") {
+                          periodNorm = dailyNorm;
                         }
                         const percentage = (reportTotals.calories / periodNorm) * 100;
                         return (
@@ -421,7 +431,7 @@ function StatsPageContent() {
                     <div key={meal.id}>
                       {showDate && (
                         <div className="text-sm font-medium text-textPrimary mb-2 mt-4 first:mt-0">
-                          🗓️ {formattedDate} {dayName}
+                          🗓️{formattedDate} {dayName}
                         </div>
                       )}
                       <div className="p-4 border border-gray-200 rounded-xl">
