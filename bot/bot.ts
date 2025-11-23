@@ -193,14 +193,8 @@ bot.start(async (ctx) => {
         } catch (fileError: any) {
           console.error("[bot] ❌ ОШИБКА отправки картинки как файл!");
           console.error("[bot] Ошибка:", fileError?.message || fileError);
-        // Если картинка не загружена, отправляем сообщение без картинки
-        console.error("[bot] ❌ ОШИБКА отправки картинки!");
-        console.error("[bot] URL картинки:", welcomeImageUrl);
-        console.error("[bot] Код ошибки:", photoError?.response?.error_code);
-        console.error("[bot] Описание ошибки:", photoError?.response?.description);
-        console.error("[bot] Полная ошибка:", JSON.stringify(photoError, null, 2));
-        
-        // Пробуем отправить без картинки
+          
+          // Если картинка не загружена, отправляем сообщение без картинки
         try {
           await ctx.reply(
             welcomeText,
