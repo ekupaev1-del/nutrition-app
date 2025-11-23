@@ -1462,6 +1462,16 @@ bot.on("voice", async (ctx) => {
 // TODO: Добавить CSV-экспорт
 // TODO: Добавить советы по питанию
 
+// Глобальная обработка ошибок (включая "bot was blocked by the user")
+bot.catch((err, ctx) => {
+  const error = err as any;
+  if (error?.response?.error_code === 403 && error?.response?.description?.includes("blocked")) {
+    console.warn(`[bot] Пользователь ${ctx.from?.id} заблокировал бота, пропускаем обработку`);
+    return;
+  }
+  console.error("[bot] Необработанная ошибка:", err);
+});
+
 // Корректное завершение
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
