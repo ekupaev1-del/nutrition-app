@@ -369,6 +369,29 @@ function StatsPageContent() {
               <div className="p-4 bg-accent/10 rounded-xl">
                 <h3 className="font-semibold text-textPrimary mb-2">Итого за период:</h3>
                 <div className="space-y-1 text-sm">
+                  {dailyNorm && (
+                    <div className="mb-2 pb-2 border-b border-gray-200">
+                      {(() => {
+                        let periodNorm = dailyNorm;
+                        if (reportPeriod === "week") periodNorm = dailyNorm * 7;
+                        else if (reportPeriod === "month") periodNorm = dailyNorm * 30;
+                        else if (reportPeriod === "year") periodNorm = dailyNorm * 365;
+                        else if (reportPeriod === "custom") {
+                          // Для выбранного периода считаем количество дней
+                          const start = new Date(reportStartDate);
+                          const end = new Date(reportEndDate);
+                          const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                          periodNorm = dailyNorm * days;
+                        }
+                        const percentage = (reportTotals.calories / periodNorm) * 100;
+                        return (
+                          <div className="font-medium">
+                            🔥 {reportTotals.calories.toFixed(0)} / {periodNorm.toFixed(0)} ккал ({percentage.toFixed(1)}%)
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                   <div>🔥 {reportTotals.calories.toFixed(0)} ккал</div>
                   <div>🥚 {reportTotals.protein.toFixed(1)} г белков</div>
                   <div>🥥 {reportTotals.fat.toFixed(1)} г жиров</div>
@@ -380,21 +403,42 @@ function StatsPageContent() {
                 <h3 className="font-semibold text-textPrimary">Приемы пищи:</h3>
                 {reportData.map((meal, index) => {
                   const date = new Date(meal.created_at);
+                  const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+                  const dayName = dayNames[date.getDay()];
+                  const formattedDate = date.toLocaleDateString("ru-RU", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric"
+                  });
+                  
+                  // Проверяем, нужно ли показывать дату (если это первая запись или дата отличается от предыдущей)
+                  const prevMeal = index > 0 ? reportData[index - 1] : null;
+                  const prevDate = prevMeal ? new Date(prevMeal.created_at) : null;
+                  const showDate = !prevDate || 
+                    date.toDateString() !== prevDate.toDateString();
+                  
                   return (
-                    <div key={meal.id} className="p-4 border border-gray-200 rounded-xl">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <div className="font-medium text-textPrimary">{meal.meal_text}</div>
-                          <div className="text-xs text-textSecondary">
-                            {date.toLocaleDateString("ru-RU")} {date.toLocaleTimeString("ru-RU", {
-                              hour: "2-digit",
-                              minute: "2-digit"
-                            })}
+                    <div key={meal.id}>
+                      {showDate && (
+                        <div className="text-sm font-medium text-textPrimary mb-2 mt-4 first:mt-0">
+                          🗓️ {formattedDate} {dayName}
+                        </div>
+                      )}
+                      <div className="p-4 border border-gray-200 rounded-xl">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <div className="font-medium text-textPrimary">{meal.meal_text}</div>
+                            <div className="text-xs text-textSecondary">
+                              {date.toLocaleTimeString("ru-RU", {
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="text-sm text-textSecondary">
-                        🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
+                        <div className="text-sm text-textSecondary">
+                          🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
+                        </div>
                       </div>
                     </div>
                   );
