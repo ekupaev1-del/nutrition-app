@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = 'force-dynamic';
+
 // Функция для отправки сообщения через Telegram Bot API
 async function sendTelegramMessage(telegramId: number, text: string, keyboard?: any) {
   console.log("[/api/save] sendTelegramMessage вызвана для telegram_id:", telegramId);
