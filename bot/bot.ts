@@ -10,7 +10,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, ".env") });
 
 // Telegram + Supabase + OpenAI
-import { Telegraf, InputFile } from "telegraf";
+import { Telegraf } from "telegraf";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
