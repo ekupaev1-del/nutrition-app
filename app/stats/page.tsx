@@ -29,6 +29,8 @@ function StatsPageContent() {
   const [reportEndDate, setReportEndDate] = useState<string>("");
   const [reportData, setReportData] = useState<any[] | null>(null);
   const [reportTotals, setReportTotals] = useState<any>(null);
+  const [dailyNorm, setDailyNorm] = useState<number | null>(null);
+  const [reportPeriod, setReportPeriod] = useState<"today" | "week" | "month" | "year" | "custom" | null>(null);
 
   // Данные для редактирования
   const [mealsList, setMealsList] = useState<any[]>([]);
@@ -147,6 +149,13 @@ function StatsPageContent() {
       const end = new Date(reportEndDate);
       end.setHours(23, 59, 59, 999);
 
+      // Получаем дневную норму пользователя
+      const userResponse = await fetch(`/api/user?userId=${userId}`);
+      const userData = await userResponse.json();
+      if (userData.calories) {
+        setDailyNorm(userData.calories);
+      }
+
       const response = await fetch(
         `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}`
       );
@@ -156,6 +165,7 @@ function StatsPageContent() {
       } else {
         setReportData(data.meals || []);
         setReportTotals(data.totals || null);
+        setReportPeriod("custom");
       }
     } catch (err) {
       setError("Ошибка генерации отчета");
@@ -244,35 +254,35 @@ function StatsPageContent() {
               onClick={() => generateReportForPeriod("today")}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
             >
-              📅 Сегодня
+              Сегодня
             </button>
 
             <button
               onClick={() => generateReportForPeriod("week")}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
             >
-              📅 Неделю
+              Неделю
             </button>
 
             <button
               onClick={() => generateReportForPeriod("month")}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
             >
-              📅 Месяц
+              Месяц
             </button>
 
             <button
               onClick={() => generateReportForPeriod("year")}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
             >
-              📅 Год
+              Год
             </button>
 
             <button
               onClick={() => setView("report")}
               className="w-full py-4 px-6 bg-accent/20 text-accent font-semibold rounded-xl hover:bg-accent/30 transition-colors"
             >
-              📅 Выбранный период
+              Выбранный период
             </button>
 
             <button
