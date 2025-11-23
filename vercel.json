@@ -1,10 +1,5 @@
 {
   "buildCommand": "npm run build",
-  "framework": "nextjs",
-  "git": {
-    "deploymentEnabled": {
-      "main": true
-    }
-  }
+  "framework": "nextjs"
 }
 

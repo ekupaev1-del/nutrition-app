@@ -54,7 +54,7 @@ export default function RootLayout({
                   if (typeof webApp.expand === 'function') {
                     webApp.expand();
                   }
-                  console.log('[layout] Telegram WebApp инициализирован', new Date().toISOString());
+                  console.log('[layout] Telegram WebApp инициализирован', new Date().toISOString(), 'v1.0.3');
                 } else {
                   setTimeout(initTelegramWebApp, 100);
                 }
