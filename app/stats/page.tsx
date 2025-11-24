@@ -215,7 +215,14 @@ function StatsPageContent() {
       console.log("[deleteMeal] Успешно удалено, обновляем список...");
       setEditingMeal(null);
       
-      // Перезагружаем список с сервера
+      // Сразу удаляем из списка для мгновенного обновления UI
+      setMealsList(prevMeals => {
+        const filtered = prevMeals.filter(meal => meal.id !== mealId);
+        console.log("[deleteMeal] Список обновлен локально, было:", prevMeals.length, "стало:", filtered.length);
+        return filtered;
+      });
+      
+      // Затем перезагружаем с сервера для синхронизации
       await loadMealsForEdit();
     } catch (err: any) {
       console.error("[deleteMeal] Исключение:", err);
@@ -261,12 +268,14 @@ function StatsPageContent() {
 
   useEffect(() => {
     if (view === "edit") {
+      // Загружаем сразу
       loadMealsForEdit();
       
-      // Устанавливаем интервал для периодического обновления списка (каждые 5 секунд)
+      // Устанавливаем интервал для периодического обновления списка (каждые 3 секунды)
       const interval = setInterval(() => {
+        console.log("[stats] Автообновление списка...");
         loadMealsForEdit();
-      }, 5000);
+      }, 3000);
       
       return () => clearInterval(interval);
     }
