@@ -195,7 +195,15 @@ function StatsPageContent() {
 
       // Добавляем timestamp для предотвращения кеширования
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}&_t=${Date.now()}`
+        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
       );
       const data = await response.json();
       if (data.error) {
