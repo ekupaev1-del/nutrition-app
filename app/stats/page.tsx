@@ -215,14 +215,7 @@ function StatsPageContent() {
       console.log("[deleteMeal] Успешно удалено, обновляем список...");
       setEditingMeal(null);
       
-      // Сразу обновляем список, удаляя элемент
-      setMealsList(prevMeals => {
-        const filtered = prevMeals.filter(meal => meal.id !== mealId);
-        console.log("[deleteMeal] Список обновлен, было:", prevMeals.length, "стало:", filtered.length);
-        return filtered;
-      });
-      
-      // Затем перезагружаем с сервера для полной синхронизации
+      // Перезагружаем список с сервера
       await loadMealsForEdit();
     } catch (err: any) {
       console.error("[deleteMeal] Исключение:", err);
