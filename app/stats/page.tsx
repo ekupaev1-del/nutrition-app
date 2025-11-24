@@ -60,26 +60,34 @@ function StatsPageContent() {
     setReportStartDate(weekAgo.toISOString().split("T")[0]);
   }, []);
 
-  const loadMealsForEdit = async () => {
+  const loadMealsForEdit = async (showLoading = true) => {
     if (!userId) return null;
 
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
+    
     try {
-      const response = await fetch(`/api/meals?userId=${userId}`);
+      // Добавляем timestamp для предотвращения кеширования
+      const response = await fetch(`/api/meals?userId=${userId}&_t=${Date.now()}`);
       const data = await response.json();
       if (data.error) {
         setError(data.error);
         return null;
       } else {
         const meals = data.meals || [];
+        console.log("[loadMealsForEdit] Загружено записей:", meals.length);
         setMealsList(meals);
         return meals;
       }
     } catch (err) {
+      console.error("[loadMealsForEdit] Ошибка:", err);
       setError("Ошибка загрузки данных");
       return null;
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -274,7 +282,7 @@ function StatsPageContent() {
       // Устанавливаем интервал для периодического обновления списка (каждые 3 секунды)
       const interval = setInterval(() => {
         console.log("[stats] Автообновление списка...");
-        loadMealsForEdit();
+        loadMealsForEdit(false); // Не показываем loading при автообновлении
       }, 3000);
       
       return () => clearInterval(interval);
