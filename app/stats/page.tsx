@@ -198,14 +198,10 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        // Сначала обновляем список, удаляя удаленный элемент
-        setMealsList(prevMeals => prevMeals.filter(meal => meal.id !== mealId));
+        // Закрываем форму редактирования
         setEditingMeal(null);
-        // Затем перезагружаем для полной синхронизации
-        const updatedMeals = await loadMealsForEdit();
-        if (updatedMeals) {
-          setMealsList(updatedMeals);
-        }
+        // Перезагружаем список с сервера
+        await loadMealsForEdit();
       }
     } catch (err) {
       setError("Ошибка удаления");
@@ -226,16 +222,10 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        // Сначала обновляем элемент в списке
-        setMealsList(prevMeals => 
-          prevMeals.map(meal => meal.id === mealId ? { ...meal, ...updates } : meal)
-        );
+        // Закрываем форму редактирования
         setEditingMeal(null);
-        // Затем перезагружаем для полной синхронизации
-        const updatedMeals = await loadMealsForEdit();
-        if (updatedMeals) {
-          setMealsList(updatedMeals);
-        }
+        // Перезагружаем список с сервера
+        await loadMealsForEdit();
       }
     } catch (err) {
       setError("Ошибка обновления");
