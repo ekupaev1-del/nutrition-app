@@ -20,7 +20,7 @@ function StatsPageContent() {
   const userIdParam = searchParams.get("id");
   const initialView = searchParams.get("view") || "menu";
   const [userId, setUserId] = useState<number | null>(null);
-  const [view, setView] = useState<"menu" | "report" | "edit">(initialView as "menu" | "report" | "edit");
+  const [view, setView] = useState<"menu" | "report">(initialView as "menu" | "report");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,10 +33,8 @@ function StatsPageContent() {
   const [reportPeriod, setReportPeriod] = useState<"today" | "week" | "month" | "year" | "custom" | null>(null);
   const [reportRefreshKey, setReportRefreshKey] = useState(0); // Для принудительного обновления отчетов
 
-  // Данные для редактирования
-  const [mealsList, setMealsList] = useState<any[]>([]);
+  // Данные для редактирования (используется в отчетах)
   const [editingMeal, setEditingMeal] = useState<any | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0); // Для принудительного обновления
 
   useEffect(() => {
     if (userIdParam) {
@@ -62,51 +60,6 @@ function StatsPageContent() {
     setReportStartDate(weekAgo.toISOString().split("T")[0]);
   }, []);
 
-  const loadMealsForEdit = async (showLoading = true) => {
-    if (!userId) return null;
-
-    if (showLoading) {
-      setLoading(true);
-    }
-    
-    try {
-      // Добавляем timestamp для предотвращения кеширования
-      const response = await fetch(`/api/meals?userId=${userId}&_t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-      const data = await response.json();
-      if (data.error) {
-        setError(data.error);
-        return null;
-      } else {
-        const meals = data.meals || [];
-        // Принудительно обновляем список - создаем новый массив для гарантии обновления React
-        // Сортируем по дате (новые сверху) - на всякий случай, хотя API уже сортирует
-        const sortedMeals = [...meals].sort((a, b) => {
-          const dateA = new Date(a.created_at).getTime();
-          const dateB = new Date(b.created_at).getTime();
-          return dateB - dateA; // Новые сверху
-        });
-        setMealsList(sortedMeals);
-        // Принудительно обновляем refreshKey для гарантии ре-рендера
-        setRefreshKey(prev => prev + 1);
-        return sortedMeals;
-      }
-    } catch (err) {
-      console.error("[loadMealsForEdit] Ошибка:", err);
-      setError("Ошибка загрузки данных");
-      return null;
-    } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
-    }
-  };
 
   // Функция для конвертации локального времени в UTC для запроса к API
   // localDate - это Date объект с локальным временем (например, 2024-01-01 00:00:00 MSK)
@@ -333,17 +286,12 @@ function StatsPageContent() {
       // Успешно удалено
       setEditingMeal(null);
       
-      // Сразу удаляем из списка для мгновенного обновления UI
-      setMealsList(prevMeals => {
-        const filtered = prevMeals.filter(meal => meal.id !== mealId);
-        return [...filtered]; // Создаем новый массив
-      });
-      
-      // Принудительно обновляем refreshKey
-      setRefreshKey(prev => prev + 1);
-      
-      // Затем перезагружаем с сервера для синхронизации
-      await loadMealsForEdit(false);
+      // Обновляем отчет - перезагружаем данные
+      if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
+        await generateReport();
+      } else if (reportPeriod) {
+        await generateReportForPeriod(reportPeriod);
+      }
     } catch (err: any) {
       setError(err.message || "Ошибка удаления");
     } finally {
@@ -371,11 +319,12 @@ function StatsPageContent() {
       // Успешно обновлено
       setEditingMeal(null);
       
-      // Принудительно обновляем refreshKey
-      setRefreshKey(prev => prev + 1);
-      
-      // Перезагружаем список с сервера
-      await loadMealsForEdit(false);
+      // Обновляем отчет - перезагружаем данные
+      if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
+        await generateReport();
+      } else if (reportPeriod) {
+        await generateReportForPeriod(reportPeriod);
+      }
     } catch (err: any) {
       console.error("[updateMeal] Исключение:", err);
       setError(err.message || "Ошибка обновления");
@@ -385,29 +334,7 @@ function StatsPageContent() {
   };
 
   useEffect(() => {
-    if (view === "edit") {
-      // Загружаем сразу
-      loadMealsForEdit();
-      
-      // Обновляем при фокусе на окне (когда пользователь возвращается в редактор)
-      const handleFocus = () => {
-        loadMealsForEdit(false);
-      };
-      
-      const handleVisibilityChange = () => {
-        if (!document.hidden) {
-          loadMealsForEdit(false);
-        }
-      };
-      
-      window.addEventListener("focus", handleFocus);
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-      
-      return () => {
-        window.removeEventListener("focus", handleFocus);
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-      };
-    } else if (view === "report" && reportPeriod) {
+    if (view === "report" && reportPeriod) {
       // Обновляем при фокусе на окне
       const refreshReport = () => {
         if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
@@ -595,7 +522,14 @@ function StatsPageContent() {
             </div>
           )}
 
-          {reportData && reportTotals && (
+          {editingMeal ? (
+            <EditMealForm
+              meal={editingMeal}
+              onSave={(updates) => updateMeal(editingMeal.id, updates)}
+              onCancel={() => setEditingMeal(null)}
+              onDelete={() => deleteMeal(editingMeal.id)}
+            />
+          ) : reportData && reportTotals && (
             <div className="mt-6 space-y-4">
               <div className="p-4 bg-accent/10 rounded-xl">
                 <h3 className="font-semibold text-textPrimary mb-2">Итого за период:</h3>
@@ -672,9 +606,12 @@ function StatsPageContent() {
                             🗓️ {formattedDate} {dayName}
                           </div>
                         )}
-                        <div className="p-4 border border-gray-200 rounded-xl">
+                        <div 
+                          className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors cursor-pointer"
+                          onClick={() => setEditingMeal(meal)}
+                        >
                           <div className="flex justify-between items-start mb-2">
-                            <div>
+                            <div className="flex-1">
                               <div className="font-medium text-textPrimary">{meal.meal_text}</div>
                               <div className="text-xs text-textSecondary">
                                 {mealDate.toLocaleTimeString("ru-RU", {
@@ -683,6 +620,7 @@ function StatsPageContent() {
                                 })}
                               </div>
                             </div>
+                            <span className="text-textSecondary ml-2">✏️</span>
                           </div>
                           <div className="text-sm text-textSecondary">
                             🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
@@ -700,118 +638,6 @@ function StatsPageContent() {
     );
   }
 
-  // Страница редактирования
-  if (view === "edit") {
-    return (
-      <div className="min-h-screen bg-background p-4 py-8">
-        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-textPrimary">✏️ Редактировать прием пищи</h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  loadMealsForEdit();
-                }}
-                disabled={loading}
-                className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
-                title="Обновить список"
-              >
-                🔄
-              </button>
-              <button
-                onClick={() => {
-                  setView("menu");
-                  setEditingMeal(null);
-                }}
-                className="text-textSecondary hover:text-textPrimary"
-              >
-                ← Назад
-              </button>
-            </div>
-          </div>
-
-          {loading && !editingMeal && (
-            <div className="text-center text-textSecondary py-4">Загрузка...</div>
-          )}
-
-          {editingMeal ? (
-            <EditMealForm
-              meal={editingMeal}
-              onSave={(updates) => updateMeal(editingMeal.id, updates)}
-              onCancel={() => setEditingMeal(null)}
-              onDelete={() => deleteMeal(editingMeal.id)}
-            />
-          ) : (
-            <div className="space-y-3">
-              {mealsList.length === 0 ? (
-                <div className="text-center text-textSecondary py-8">
-                  Нет записей о приемах пищи
-                </div>
-              ) : (
-                mealsList.map((meal, index) => {
-                  // Конвертируем UTC из базы в локальное время для отображения (как в отчетах)
-                  const mealDateUTC = new Date(meal.created_at);
-                  // Создаем дату в локальном времени
-                  const mealDate = new Date(mealDateUTC.getTime() - mealDateUTC.getTimezoneOffset() * 60000);
-                  
-                  const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-                  const dayName = dayNames[mealDate.getDay()];
-                  const formattedDate = mealDate.toLocaleDateString("ru-RU", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric"
-                  });
-                  
-                  // Проверяем, нужно ли показывать дату (если это первая запись или дата отличается от предыдущей)
-                  const prevMeal = index > 0 ? mealsList[index - 1] : null;
-                  let showDate = true;
-                  if (prevMeal) {
-                    const prevDateUTC = new Date(prevMeal.created_at);
-                    const prevDate = new Date(prevDateUTC.getTime() - prevDateUTC.getTimezoneOffset() * 60000);
-                    // Сравниваем только дату (без времени)
-                    showDate = mealDate.toDateString() !== prevDate.toDateString();
-                  }
-                  
-                  // Используем refreshKey для принудительного обновления
-                  const mealKey = `${meal.id}-${refreshKey}-${index}`;
-                  
-                  return (
-                    <div key={mealKey}>
-                      {showDate && (
-                        <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
-                          🗓️ {formattedDate} {dayName}
-                        </div>
-                      )}
-                      <div
-                        className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors cursor-pointer"
-                        onClick={() => setEditingMeal(meal)}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="font-medium text-textPrimary mb-1">{meal.meal_text}</div>
-                            <div className="text-xs text-textSecondary mb-2">
-                              {mealDate.toLocaleTimeString("ru-RU", {
-                                hour: "2-digit",
-                                minute: "2-digit"
-                              })}
-                            </div>
-                            <div className="text-sm text-textSecondary">
-                              🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
-                            </div>
-                          </div>
-                          <span className="text-textSecondary">✏️</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return null;
 }
