@@ -286,7 +286,28 @@ function StatsPageContent() {
       // Успешно удалено
       setEditingMeal(null);
       
-      // Обновляем отчет - перезагружаем данные
+      // Сразу удаляем из локального состояния для мгновенного обновления UI
+      if (reportData) {
+        setReportData(prevData => {
+          const filtered = (prevData || []).filter(meal => meal.id !== mealId);
+          // Пересчитываем итоги
+          const newTotals = filtered.reduce(
+            (acc: any, meal: any) => ({
+              calories: acc.calories + Number(meal.calories || 0),
+              protein: acc.protein + Number(meal.protein || 0),
+              fat: acc.fat + Number(meal.fat || 0),
+              carbs: acc.carbs + Number(meal.carbs || 0)
+            }),
+            { calories: 0, protein: 0, fat: 0, carbs: 0 }
+          );
+          setReportTotals(newTotals);
+          return filtered;
+        });
+        // Принудительно обновляем refreshKey для ре-рендера
+        setReportRefreshKey(prev => prev + 1);
+      }
+      
+      // Затем перезагружаем отчет с сервера для синхронизации
       if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
         await generateReport();
       } else if (reportPeriod && reportPeriod !== "custom") {
@@ -319,7 +340,30 @@ function StatsPageContent() {
       // Успешно обновлено
       setEditingMeal(null);
       
-      // Обновляем отчет - перезагружаем данные
+      // Сразу обновляем в локальном состоянии для мгновенного обновления UI
+      if (reportData) {
+        setReportData(prevData => {
+          const updated = (prevData || []).map(meal => 
+            meal.id === mealId ? { ...meal, ...updates } : meal
+          );
+          // Пересчитываем итоги
+          const newTotals = updated.reduce(
+            (acc: any, meal: any) => ({
+              calories: acc.calories + Number(meal.calories || 0),
+              protein: acc.protein + Number(meal.protein || 0),
+              fat: acc.fat + Number(meal.fat || 0),
+              carbs: acc.carbs + Number(meal.carbs || 0)
+            }),
+            { calories: 0, protein: 0, fat: 0, carbs: 0 }
+          );
+          setReportTotals(newTotals);
+          return updated;
+        });
+        // Принудительно обновляем refreshKey для ре-рендера
+        setReportRefreshKey(prev => prev + 1);
+      }
+      
+      // Затем перезагружаем отчет с сервера для синхронизации
       if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
         await generateReport();
       } else if (reportPeriod && reportPeriod !== "custom") {
