@@ -138,8 +138,9 @@ function StatsPageContent() {
       }
 
       // Конвертируем в ISO строки - Supabase работает с UTC
+      // Добавляем timestamp для предотвращения кеширования
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}`
+        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}&_t=${Date.now()}`
       );
       const data = await response.json();
       if (data.error) {
