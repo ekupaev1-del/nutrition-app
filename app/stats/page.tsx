@@ -153,20 +153,20 @@ function StatsPageContent() {
         setError(data.error);
       } else {
         // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы, нужно конвертировать в локальное время
+        // meal.created_at приходит в UTC из базы
         const filteredMeals = (data.meals || []).filter((meal: any) => {
           // created_at в UTC из базы
           const mealUTC = new Date(meal.created_at);
-          // Получаем локальное время (JavaScript автоматически конвертирует при создании Date)
-          // Но нужно правильно сравнить с локальными границами
           
-          // Сравниваем только дату (без времени) для правильной фильтрации
-          const mealLocal = new Date(mealUTC);
-          const mealDateOnly = new Date(mealLocal.getFullYear(), mealLocal.getMonth(), mealLocal.getDate());
-          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
-          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
+          // Сравниваем timestamp напрямую
+          // mealUTC уже содержит правильный timestamp (UTC)
+          // localStart и localEnd тоже содержат правильные timestamp (локальное время)
+          // JavaScript автоматически конвертирует при сравнении
+          const mealTimestamp = mealUTC.getTime();
+          const startTimestamp = localStart.getTime();
+          const endTimestamp = localEnd.getTime();
           
-          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
+          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
         });
         
         // Пересчитываем итоги для отфильтрованных данных
@@ -237,19 +237,20 @@ function StatsPageContent() {
         setError(data.error);
       } else {
         // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы, нужно конвертировать в локальное время
+        // meal.created_at приходит в UTC из базы
         const filteredMeals = (data.meals || []).filter((meal: any) => {
           // created_at в UTC из базы
           const mealUTC = new Date(meal.created_at);
-          // Получаем локальное время (JavaScript автоматически конвертирует при создании Date)
           
-          // Сравниваем только дату (без времени) для правильной фильтрации
-          const mealLocal = new Date(mealUTC);
-          const mealDateOnly = new Date(mealLocal.getFullYear(), mealLocal.getMonth(), mealLocal.getDate());
-          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
-          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
+          // Сравниваем timestamp напрямую
+          // mealUTC уже содержит правильный timestamp (UTC)
+          // localStart и localEnd тоже содержат правильные timestamp (локальное время)
+          // JavaScript автоматически конвертирует при сравнении
+          const mealTimestamp = mealUTC.getTime();
+          const startTimestamp = localStart.getTime();
+          const endTimestamp = localEnd.getTime();
           
-          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
+          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
         });
         
         // Пересчитываем итоги для отфильтрованных данных
