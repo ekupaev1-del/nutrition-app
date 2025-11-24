@@ -105,10 +105,14 @@ function StatsPageContent() {
 
       switch (period) {
         case "today":
-          // Начало сегодняшнего дня (00:00:00)
-          start.setHours(0, 0, 0, 0);
-          // Конец сегодняшнего дня (23:59:59.999)
-          end.setHours(23, 59, 59, 999);
+          // Начало сегодняшнего дня в локальном времени (00:00:00)
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+          // Конец сегодняшнего дня в локальном времени (23:59:59.999)
+          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+          // Конвертируем в UTC с учетом смещения часового пояса
+          const timezoneOffset = now.getTimezoneOffset() * 60000;
+          start = new Date(todayStart.getTime() - timezoneOffset);
+          end = new Date(todayEnd.getTime() - timezoneOffset);
           break;
         case "week":
           // 7 дней назад от начала сегодняшнего дня
@@ -230,23 +234,33 @@ function StatsPageContent() {
 
   const updateMeal = async (mealId: number, updates: any) => {
     setLoading(true);
+    setError(null);
     try {
+      console.log("[updateMeal] Обновление mealId:", mealId, "updates:", updates);
       const response = await fetch(`/api/meals/${mealId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates)
       });
       const data = await response.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        // Закрываем форму редактирования
-        setEditingMeal(null);
-        // Перезагружаем список с сервера
-        await loadMealsForEdit();
+      console.log("[updateMeal] Ответ от API:", data);
+      
+      if (!response.ok || !data.ok) {
+        const errorMsg = data.error || "Ошибка обновления";
+        console.error("[updateMeal] Ошибка:", errorMsg);
+        setError(errorMsg);
+        return;
       }
-    } catch (err) {
-      setError("Ошибка обновления");
+
+      // Успешно обновлено
+      console.log("[updateMeal] Успешно обновлено, обновляем список...");
+      setEditingMeal(null);
+      
+      // Перезагружаем список с сервера
+      await loadMealsForEdit();
+    } catch (err: any) {
+      console.error("[updateMeal] Исключение:", err);
+      setError(err.message || "Ошибка обновления");
     } finally {
       setLoading(false);
     }
@@ -605,6 +619,13 @@ function EditMealForm({
   const [carbs, setCarbs] = useState(meal.carbs?.toString() || "0");
 
   const handleSave = () => {
+    console.log("[EditMealForm] handleSave вызван, данные:", {
+      meal_text: mealText,
+      calories: Number(calories),
+      protein: Number(protein),
+      fat: Number(fat),
+      carbs: Number(carbs)
+    });
     onSave({
       meal_text: mealText,
       calories: Number(calories),
