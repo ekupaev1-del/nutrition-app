@@ -190,21 +190,39 @@ function StatsPageContent() {
     if (!confirm("Удалить этот прием пищи?")) return;
 
     setLoading(true);
+    setError(null);
     try {
+      console.log("[deleteMeal] Удаление mealId:", mealId);
       const response = await fetch(`/api/meals/${mealId}`, {
         method: "DELETE"
       });
+      
       const data = await response.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        // Закрываем форму редактирования
-        setEditingMeal(null);
-        // Перезагружаем список с сервера
-        await loadMealsForEdit();
+      console.log("[deleteMeal] Ответ от API:", data);
+      
+      if (!response.ok || !data.ok) {
+        const errorMsg = data.error || "Ошибка удаления";
+        console.error("[deleteMeal] Ошибка:", errorMsg);
+        setError(errorMsg);
+        return;
       }
-    } catch (err) {
-      setError("Ошибка удаления");
+
+      // Успешно удалено - обновляем список
+      console.log("[deleteMeal] Успешно удалено, обновляем список...");
+      setEditingMeal(null);
+      
+      // Сразу обновляем список, удаляя элемент
+      setMealsList(prevMeals => {
+        const filtered = prevMeals.filter(meal => meal.id !== mealId);
+        console.log("[deleteMeal] Список обновлен, было:", prevMeals.length, "стало:", filtered.length);
+        return filtered;
+      });
+      
+      // Затем перезагружаем с сервера для полной синхронизации
+      await loadMealsForEdit();
+    } catch (err: any) {
+      console.error("[deleteMeal] Исключение:", err);
+      setError(err.message || "Ошибка удаления");
     } finally {
       setLoading(false);
     }
