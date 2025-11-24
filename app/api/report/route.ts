@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     .eq("user_id", user.telegram_id)
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString())
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   console.log("[/api/report] Запрос:", {
     user_id: user.telegram_id,

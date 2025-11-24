@@ -44,6 +44,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
+  console.log("[/api/meals] Запрос для user_id:", user.telegram_id, "найдено записей:", meals?.length || 0);
+  console.log("[/api/meals] Первые 3 записи:", meals?.slice(0, 3).map(m => ({ id: m.id, text: m.meal_text, created_at: m.created_at })) || []);
+
   return NextResponse.json({ ok: true, meals: meals || [] });
 }
 

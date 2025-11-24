@@ -84,8 +84,10 @@ function StatsPageContent() {
       } else {
         const meals = data.meals || [];
         console.log("[loadMealsForEdit] Загружено записей:", meals.length);
+        console.log("[loadMealsForEdit] Первые 3 записи:", meals.slice(0, 3).map(m => ({ id: m.id, text: m.meal_text, created_at: m.created_at })));
         // Всегда обновляем список - React сам определит, нужно ли перерисовывать
         setMealsList(meals);
+        console.log("[loadMealsForEdit] setMealsList вызван с", meals.length, "записями");
         return meals;
       }
     } catch (err) {
