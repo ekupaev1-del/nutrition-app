@@ -237,6 +237,13 @@ function StatsPageContent() {
   useEffect(() => {
     if (view === "edit") {
       loadMealsForEdit();
+      
+      // Устанавливаем интервал для периодического обновления списка (каждые 5 секунд)
+      const interval = setInterval(() => {
+        loadMealsForEdit();
+      }, 5000);
+      
+      return () => clearInterval(interval);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, userId]);
