@@ -85,13 +85,10 @@ function StatsPageContent() {
         return null;
       } else {
         const meals = data.meals || [];
-        console.log("[loadMealsForEdit] Загружено записей:", meals.length);
-        console.log("[loadMealsForEdit] Первые 3 записи:", meals.slice(0, 3).map(m => ({ id: m.id, text: m.meal_text, created_at: m.created_at })));
         // Принудительно обновляем список - создаем новый массив для гарантии обновления React
         setMealsList([...meals]);
         // Принудительно обновляем refreshKey для гарантии ре-рендера
         setRefreshKey(prev => prev + 1);
-        console.log("[loadMealsForEdit] setMealsList вызван с", meals.length, "записями, refreshKey обновлен");
         return meals;
       }
     } catch (err) {
@@ -163,8 +160,6 @@ function StatsPageContent() {
           break;
       }
       
-      console.log(`[generateReportForPeriod] Период: ${period}, Локальное время: ${localStart.toLocaleString()} - ${localEnd.toLocaleString()}, UTC: ${start.toISOString()} - ${end.toISOString()}`);
-
       // Конвертируем в ISO строки - Supabase работает с UTC
       // Добавляем timestamp для предотвращения кеширования
       const response = await fetch(
@@ -215,8 +210,6 @@ function StatsPageContent() {
       const start = new Date(localStart.getTime() - offsetMs);
       const end = new Date(localEnd.getTime() - offsetMs);
       
-      console.log(`[generateReport] Выбранный период, Локальное: ${localStart.toLocaleString()} - ${localEnd.toLocaleString()}, UTC: ${start.toISOString()} - ${end.toISOString()}`);
-
       // Получаем дневную норму пользователя
       const userResponse = await fetch(`/api/user?userId=${userId}`);
       const userData = await userResponse.json();
@@ -258,31 +251,23 @@ function StatsPageContent() {
     setLoading(true);
     setError(null);
     try {
-      console.log("[deleteMeal] Удаление mealId:", mealId);
       const response = await fetch(`/api/meals/${mealId}`, {
         method: "DELETE"
       });
       
       const data = await response.json();
-      console.log("[deleteMeal] Ответ от API:", data);
       
       if (!response.ok || !data.ok) {
         const errorMsg = data.error || "Ошибка удаления";
-        console.error("[deleteMeal] Ошибка:", errorMsg);
         setError(errorMsg);
         return;
       }
 
       // Успешно удалено - обновляем список
-      console.log("[deleteMeal] Успешно удалено, обновляем список...");
       setEditingMeal(null);
       
       // Сразу удаляем из списка для мгновенного обновления UI
-      setMealsList(prevMeals => {
-        const filtered = prevMeals.filter(meal => meal.id !== mealId);
-        console.log("[deleteMeal] Список обновлен локально, было:", prevMeals.length, "стало:", filtered.length);
-        return [...filtered]; // Создаем новый массив
-      });
+      setMealsList(prevMeals => prevMeals.filter(meal => meal.id !== mealId));
       
       // Принудительно обновляем refreshKey
       setRefreshKey(prev => prev + 1);
@@ -301,24 +286,20 @@ function StatsPageContent() {
     setLoading(true);
     setError(null);
     try {
-      console.log("[updateMeal] Обновление mealId:", mealId, "updates:", updates);
       const response = await fetch(`/api/meals/${mealId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates)
       });
       const data = await response.json();
-      console.log("[updateMeal] Ответ от API:", data);
       
       if (!response.ok || !data.ok) {
         const errorMsg = data.error || "Ошибка обновления";
-        console.error("[updateMeal] Ошибка:", errorMsg);
         setError(errorMsg);
         return;
       }
 
       // Успешно обновлено
-      console.log("[updateMeal] Успешно обновлено, обновляем список...");
       setEditingMeal(null);
       
       // Принудительно обновляем refreshKey
@@ -339,21 +320,13 @@ function StatsPageContent() {
       // Загружаем сразу
       loadMealsForEdit();
       
-      // Устанавливаем интервал для периодического обновления списка (каждые 500мс)
-      const interval = setInterval(() => {
-        console.log("[stats] Автообновление списка в редакторе...");
-        loadMealsForEdit(false); // Не показываем loading при автообновлении
-      }, 500);
-      
       // Обновляем при фокусе на окне (когда пользователь возвращается в редактор)
       const handleFocus = () => {
-        console.log("[stats] Окно получило фокус, обновляем список...");
         loadMealsForEdit(false);
       };
       
       const handleVisibilityChange = () => {
         if (!document.hidden) {
-          console.log("[stats] Вкладка стала видимой, обновляем список...");
           loadMealsForEdit(false);
         }
       };
@@ -362,14 +335,12 @@ function StatsPageContent() {
       document.addEventListener("visibilitychange", handleVisibilityChange);
       
       return () => {
-        clearInterval(interval);
         window.removeEventListener("focus", handleFocus);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
     } else if (view === "report" && reportPeriod) {
-      // Автообновление для отчетов
+      // Обновляем при фокусе на окне
       const refreshReport = () => {
-        console.log("[stats] Автообновление отчета для периода:", reportPeriod);
         if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
           generateReport();
         } else if (reportPeriod !== "custom") {
@@ -377,21 +348,12 @@ function StatsPageContent() {
         }
       };
       
-      // Обновляем сразу при открытии отчета
-      refreshReport();
-      
-      // Устанавливаем интервал для периодического обновления отчета (каждые 500мс)
-      const interval = setInterval(refreshReport, 500);
-      
-      // Обновляем при фокусе на окне
       const handleFocus = () => {
-        console.log("[stats] Окно получило фокус, обновляем отчет...");
         refreshReport();
       };
       
       const handleVisibilityChange = () => {
         if (!document.hidden) {
-          console.log("[stats] Вкладка стала видимой, обновляем отчет...");
           refreshReport();
         }
       };
@@ -400,7 +362,6 @@ function StatsPageContent() {
       document.addEventListener("visibilitychange", handleVisibilityChange);
       
       return () => {
-        clearInterval(interval);
         window.removeEventListener("focus", handleFocus);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
@@ -491,16 +452,34 @@ function StatsPageContent() {
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-textPrimary">📋 Отчет</h2>
-            <button
-              onClick={() => {
-                setView("menu");
-                setReportData(null);
-                setReportTotals(null);
-              }}
-              className="text-textSecondary hover:text-textPrimary"
-            >
-              ← Назад
-            </button>
+            <div className="flex items-center gap-2">
+              {reportData && reportPeriod && (
+                <button
+                  onClick={() => {
+                    if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
+                      generateReport();
+                    } else if (reportPeriod !== "custom") {
+                      generateReportForPeriod(reportPeriod);
+                    }
+                  }}
+                  disabled={loading}
+                  className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
+                  title="Обновить отчет"
+                >
+                  🔄
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setView("menu");
+                  setReportData(null);
+                  setReportTotals(null);
+                }}
+                className="text-textSecondary hover:text-textPrimary"
+              >
+                ← Назад
+              </button>
+            </div>
           </div>
 
           {!reportData && (
@@ -648,15 +627,27 @@ function StatsPageContent() {
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-textPrimary">✏️ Редактировать прием пищи</h2>
-            <button
-              onClick={() => {
-                setView("menu");
-                setEditingMeal(null);
-              }}
-              className="text-textSecondary hover:text-textPrimary"
-            >
-              ← Назад
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  loadMealsForEdit();
+                }}
+                disabled={loading}
+                className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
+                title="Обновить список"
+              >
+                🔄
+              </button>
+              <button
+                onClick={() => {
+                  setView("menu");
+                  setEditingMeal(null);
+                }}
+                className="text-textSecondary hover:text-textPrimary"
+              >
+                ← Назад
+              </button>
+            </div>
           </div>
 
           {loading && !editingMeal && (

@@ -52,16 +52,6 @@ export async function GET(req: Request) {
     .lte("created_at", endDate.toISOString())
     .order("created_at", { ascending: false });
 
-  console.log("[/api/report] Запрос:", {
-    user_id: user.telegram_id,
-    start_original: start,
-    end_original: end,
-    start_expanded: startDate.toISOString(),
-    end_expanded: endDate.toISOString(),
-    found_meals: meals?.length || 0,
-    meal_dates: meals?.slice(0, 5).map(m => m.created_at) || []
-  });
-
   if (error) {
     console.error("[/api/report] Ошибка:", error);
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
