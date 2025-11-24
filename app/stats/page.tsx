@@ -61,7 +61,7 @@ function StatsPageContent() {
   }, []);
 
   const loadMealsForEdit = async () => {
-    if (!userId) return;
+    if (!userId) return null;
 
     setLoading(true);
     try {
@@ -69,11 +69,15 @@ function StatsPageContent() {
       const data = await response.json();
       if (data.error) {
         setError(data.error);
+        return null;
       } else {
-        setMealsList(data.meals || []);
+        const meals = data.meals || [];
+        setMealsList(meals);
+        return meals;
       }
     } catch (err) {
       setError("Ошибка загрузки данных");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -194,11 +198,14 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        // Обновляем список, удаляя удаленный элемент
+        // Сначала обновляем список, удаляя удаленный элемент
         setMealsList(prevMeals => prevMeals.filter(meal => meal.id !== mealId));
         setEditingMeal(null);
-        // Также перезагружаем для синхронизации
-        await loadMealsForEdit();
+        // Затем перезагружаем для полной синхронизации
+        const updatedMeals = await loadMealsForEdit();
+        if (updatedMeals) {
+          setMealsList(updatedMeals);
+        }
       }
     } catch (err) {
       setError("Ошибка удаления");
@@ -219,13 +226,16 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        // Обновляем элемент в списке
+        // Сначала обновляем элемент в списке
         setMealsList(prevMeals => 
           prevMeals.map(meal => meal.id === mealId ? { ...meal, ...updates } : meal)
         );
         setEditingMeal(null);
-        // Также перезагружаем для синхронизации
-        await loadMealsForEdit();
+        // Затем перезагружаем для полной синхронизации
+        const updatedMeals = await loadMealsForEdit();
+        if (updatedMeals) {
+          setMealsList(updatedMeals);
+        }
       }
     } catch (err) {
       setError("Ошибка обновления");
