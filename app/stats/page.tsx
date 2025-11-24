@@ -114,14 +114,10 @@ function StatsPageContent() {
 
       switch (period) {
         case "today":
-          // Начало сегодняшнего дня в локальном времени (00:00:00)
-          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-          // Конец сегодняшнего дня в локальном времени (23:59:59.999)
-          const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-          // Конвертируем в UTC с учетом смещения часового пояса
-          const timezoneOffset = now.getTimezoneOffset() * 60000;
-          start = new Date(todayStart.getTime() - timezoneOffset);
-          end = new Date(todayEnd.getTime() - timezoneOffset);
+          // Начало сегодняшнего дня (00:00:00)
+          start.setHours(0, 0, 0, 0);
+          // Конец сегодняшнего дня (23:59:59.999)
+          end.setHours(23, 59, 59, 999);
           break;
         case "week":
           // 7 дней назад от начала сегодняшнего дня
@@ -282,7 +278,7 @@ function StatsPageContent() {
       
       // Устанавливаем интервал для периодического обновления списка (каждые 2 секунды)
       const interval = setInterval(() => {
-        console.log("[stats] Автообновление списка...");
+        console.log("[stats] Автообновление списка в редакторе...");
         loadMealsForEdit(false); // Не показываем loading при автообновлении
       }, 2000);
       
@@ -307,9 +303,47 @@ function StatsPageContent() {
         window.removeEventListener("focus", handleFocus);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
+    } else if (view === "report" && reportPeriod) {
+      // Автообновление для отчетов
+      const refreshReport = () => {
+        console.log("[stats] Автообновление отчета для периода:", reportPeriod);
+        if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
+          generateReport();
+        } else if (reportPeriod !== "custom") {
+          generateReportForPeriod(reportPeriod);
+        }
+      };
+      
+      // Обновляем сразу при открытии отчета
+      refreshReport();
+      
+      // Устанавливаем интервал для периодического обновления отчета (каждые 3 секунды)
+      const interval = setInterval(refreshReport, 3000);
+      
+      // Обновляем при фокусе на окне
+      const handleFocus = () => {
+        console.log("[stats] Окно получило фокус, обновляем отчет...");
+        refreshReport();
+      };
+      
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          console.log("[stats] Вкладка стала видимой, обновляем отчет...");
+          refreshReport();
+        }
+      };
+      
+      window.addEventListener("focus", handleFocus);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("focus", handleFocus);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, userId]);
+  }, [view, userId, reportPeriod, reportStartDate, reportEndDate]);
 
   if (error && !userId) {
     return (
