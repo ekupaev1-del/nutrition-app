@@ -219,8 +219,13 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        await loadMealsForEdit();
+        // Обновляем элемент в списке
+        setMealsList(prevMeals => 
+          prevMeals.map(meal => meal.id === mealId ? { ...meal, ...updates } : meal)
+        );
         setEditingMeal(null);
+        // Также перезагружаем для синхронизации
+        await loadMealsForEdit();
       }
     } catch (err) {
       setError("Ошибка обновления");
