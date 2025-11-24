@@ -731,8 +731,6 @@ function StatsPageContent() {
                 </div>
               ) : (
                 mealsList.map((meal, index) => {
-                  // Используем refreshKey для принудительного обновления
-                  const mealKey = `${meal.id}-${refreshKey}`;
                   const date = new Date(meal.created_at);
                   const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
                   const dayName = dayNames[date.getDay()];
