@@ -72,7 +72,7 @@ bot.start(async (ctx) => {
 
     if (selectError) {
       console.error("[bot] Ошибка проверки пользователя:", selectError);
-      // Продолжаем работу, даже если есть ошибка - возможно пользователь просто не найден
+      return ctx.reply("Ошибка базы данных. Попробуйте позже.");
     }
 
     let userId;
@@ -85,42 +85,24 @@ bot.start(async (ctx) => {
       // Создаём новую запись ТОЛЬКО с telegram_id
       // Форма потом обновит остальные поля через /api/save
       console.log(`[bot] Создание новой записи для telegram_id: ${telegram_id}`);
-      
-      // Пробуем сначала insert
-      const { data: inserted, error: insertError } = await supabase
+      const { data: upserted, error: upsertError } = await supabase
         .from("users")
-        .insert({ telegram_id: Number(telegram_id) })
+        .upsert({ telegram_id }, { onConflict: "telegram_id", ignoreDuplicates: false })
         .select("id")
         .single();
 
-      if (insertError) {
-        // Если ошибка из-за дубликата, пробуем получить существующего пользователя
-        if (insertError.code === '23505' || insertError.message?.includes('duplicate') || insertError.message?.includes('unique')) {
-          console.log(`[bot] Пользователь уже существует, получаем его данные`);
-          const { data: existingUser2, error: selectError2 } = await supabase
-            .from("users")
-            .select("id")
-            .eq("telegram_id", telegram_id)
-            .maybeSingle();
-          
-          if (selectError2 || !existingUser2) {
-            console.error("[bot] Ошибка получения существующего пользователя:", selectError2);
-            return ctx.reply("Ошибка базы данных. Попробуйте позже.");
-          }
-          
-          userId = existingUser2.id;
-          console.log(`[bot] Найден существующий пользователь, id: ${userId}`);
-        } else {
-          console.error("[bot] Ошибка insert:", insertError);
-          return ctx.reply("Ошибка создания записи в базе. Попробуйте позже.");
-        }
-      } else if (inserted?.id) {
-        userId = inserted.id;
-        console.log(`[bot] Создана новая запись, id: ${userId}`);
-      } else {
-        console.error("[bot] Insert вернул пустой результат");
+      if (upsertError) {
+        console.error("[bot] Ошибка upsert:", upsertError);
+        return ctx.reply("Ошибка создания записи в базе. Попробуйте позже.");
+      }
+
+      if (!upserted?.id) {
+        console.error("[bot] Upsert вернул пустой результат");
         return ctx.reply("Ошибка: не удалось получить ID пользователя");
       }
+
+      userId = upserted.id;
+      console.log(`[bot] Создана новая запись, id: ${userId}`);
     }
 
     // Если анкета не заполнена - показываем приветствие
@@ -1044,31 +1026,17 @@ bot.on("text", async (ctx) => {
       // Создаём пользователя, если его нет
       const { data: newUser, error: createError } = await supabase
         .from("users")
-        .insert({ telegram_id: Number(telegram_id) })
+        .upsert({ telegram_id }, { onConflict: "telegram_id", ignoreDuplicates: false })
         .select("id")
         .single();
 
-      if (createError) {
-        // Если ошибка из-за дубликата, пользователь уже существует - продолжаем работу
-        if (createError.code === '23505' || createError.message?.includes('duplicate') || createError.message?.includes('unique')) {
-          console.log(`[bot] Пользователь уже существует, продолжаем`);
-        } else {
-          console.error("[bot] Ошибка создания пользователя:", createError);
-          await ctx.telegram.editMessageText(
-            ctx.chat!.id,
-            processingMsg.message_id,
-            undefined,
-            "❌ Ошибка: пользователь не найден. Используйте /start для регистрации."
-          );
-          return;
-        }
-      } else if (!newUser || !newUser.id) {
-        console.error("[bot] Создание пользователя вернуло пустой результат");
+      if (createError || !newUser) {
+        console.error("[bot] Ошибка создания пользователя:", createError);
         await ctx.telegram.editMessageText(
           ctx.chat!.id,
           processingMsg.message_id,
           undefined,
-          "❌ Ошибка: не удалось создать пользователя. Используйте /start для регистрации."
+          "❌ Ошибка: пользователь не найден. Используйте /start для регистрации."
         );
         return;
       }
