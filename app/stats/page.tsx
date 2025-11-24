@@ -356,10 +356,16 @@ function StatsPageContent() {
         }
       };
       
+      // Автоматическое обновление каждые 2 секунды для быстрого появления новых записей
+      const interval = setInterval(() => {
+        refreshReport();
+      }, 2000);
+      
       window.addEventListener("focus", handleFocus);
       document.addEventListener("visibilitychange", handleVisibilityChange);
       
       return () => {
+        clearInterval(interval);
         window.removeEventListener("focus", handleFocus);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
