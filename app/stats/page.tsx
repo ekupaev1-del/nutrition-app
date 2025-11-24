@@ -86,10 +86,16 @@ function StatsPageContent() {
       } else {
         const meals = data.meals || [];
         // Принудительно обновляем список - создаем новый массив для гарантии обновления React
-        setMealsList([...meals]);
+        // Сортируем по дате (новые сверху) - на всякий случай, хотя API уже сортирует
+        const sortedMeals = [...meals].sort((a, b) => {
+          const dateA = new Date(a.created_at).getTime();
+          const dateB = new Date(b.created_at).getTime();
+          return dateB - dateA; // Новые сверху
+        });
+        setMealsList(sortedMeals);
         // Принудительно обновляем refreshKey для гарантии ре-рендера
         setRefreshKey(prev => prev + 1);
-        return meals;
+        return sortedMeals;
       }
     } catch (err) {
       console.error("[loadMealsForEdit] Ошибка:", err);
@@ -314,11 +320,14 @@ function StatsPageContent() {
         return;
       }
 
-      // Успешно удалено - обновляем список
+      // Успешно удалено
       setEditingMeal(null);
       
       // Сразу удаляем из списка для мгновенного обновления UI
-      setMealsList(prevMeals => prevMeals.filter(meal => meal.id !== mealId));
+      setMealsList(prevMeals => {
+        const filtered = prevMeals.filter(meal => meal.id !== mealId);
+        return [...filtered]; // Создаем новый массив
+      });
       
       // Принудительно обновляем refreshKey
       setRefreshKey(prev => prev + 1);
@@ -326,7 +335,6 @@ function StatsPageContent() {
       // Затем перезагружаем с сервера для синхронизации
       await loadMealsForEdit(false);
     } catch (err: any) {
-      console.error("[deleteMeal] Исключение:", err);
       setError(err.message || "Ошибка удаления");
     } finally {
       setLoading(false);
@@ -731,10 +739,14 @@ function StatsPageContent() {
                 </div>
               ) : (
                 mealsList.map((meal, index) => {
-                  const date = new Date(meal.created_at);
+                  // Конвертируем UTC из базы в локальное время для отображения (как в отчетах)
+                  const mealDateUTC = new Date(meal.created_at);
+                  // Создаем дату в локальном времени
+                  const mealDate = new Date(mealDateUTC.getTime() - mealDateUTC.getTimezoneOffset() * 60000);
+                  
                   const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-                  const dayName = dayNames[date.getDay()];
-                  const formattedDate = date.toLocaleDateString("ru-RU", {
+                  const dayName = dayNames[mealDate.getDay()];
+                  const formattedDate = mealDate.toLocaleDateString("ru-RU", {
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric"
@@ -742,12 +754,16 @@ function StatsPageContent() {
                   
                   // Проверяем, нужно ли показывать дату (если это первая запись или дата отличается от предыдущей)
                   const prevMeal = index > 0 ? mealsList[index - 1] : null;
-                  const prevDate = prevMeal ? new Date(prevMeal.created_at) : null;
-                  const showDate = !prevDate || 
-                    date.toDateString() !== prevDate.toDateString();
+                  let showDate = true;
+                  if (prevMeal) {
+                    const prevDateUTC = new Date(prevMeal.created_at);
+                    const prevDate = new Date(prevDateUTC.getTime() - prevDateUTC.getTimezoneOffset() * 60000);
+                    // Сравниваем только дату (без времени)
+                    showDate = mealDate.toDateString() !== prevDate.toDateString();
+                  }
                   
                   // Используем refreshKey для принудительного обновления
-                  const mealKey = `${meal.id}-${refreshKey}`;
+                  const mealKey = `${meal.id}-${refreshKey}-${index}`;
                   
                   return (
                     <div key={mealKey}>
@@ -764,7 +780,7 @@ function StatsPageContent() {
                           <div className="flex-1">
                             <div className="font-medium text-textPrimary mb-1">{meal.meal_text}</div>
                             <div className="text-xs text-textSecondary mb-2">
-                              {date.toLocaleTimeString("ru-RU", {
+                              {mealDate.toLocaleTimeString("ru-RU", {
                                 hour: "2-digit",
                                 minute: "2-digit"
                               })}
