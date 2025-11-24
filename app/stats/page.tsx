@@ -189,10 +189,12 @@ function StatsPageContent() {
       } else {
         // Фильтруем данные по локальному времени на клиенте
         const filteredMeals = (data.meals || []).filter((meal: any) => {
-          const mealDate = new Date(meal.created_at);
-          // Конвертируем UTC из базы в локальное время
-          const mealLocal = new Date(mealDate.getTime() + mealDate.getTimezoneOffset() * 60000);
-          return mealLocal >= localStart && mealLocal <= localEnd;
+          const mealDateUTC = new Date(meal.created_at);
+          // Сравниваем timestamp напрямую
+          const mealTimestamp = mealDateUTC.getTime();
+          const startTimestamp = localStart.getTime();
+          const endTimestamp = localEnd.getTime();
+          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
         });
         
         // Пересчитываем итоги для отфильтрованных данных
@@ -263,10 +265,12 @@ function StatsPageContent() {
       } else {
         // Фильтруем данные по локальному времени на клиенте
         const filteredMeals = (data.meals || []).filter((meal: any) => {
-          const mealDate = new Date(meal.created_at);
-          // Конвертируем UTC из базы в локальное время
-          const mealLocal = new Date(mealDate.getTime() + mealDate.getTimezoneOffset() * 60000);
-          return mealLocal >= localStart && mealLocal <= localEnd;
+          const mealDateUTC = new Date(meal.created_at);
+          // Сравниваем timestamp напрямую
+          const mealTimestamp = mealDateUTC.getTime();
+          const startTimestamp = localStart.getTime();
+          const endTimestamp = localEnd.getTime();
+          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
         });
         
         // Пересчитываем итоги для отфильтрованных данных
