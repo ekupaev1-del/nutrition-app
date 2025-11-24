@@ -62,20 +62,9 @@ function StatsPageContent() {
 
 
   // Функция для получения UTC времени из локального
-  // Создает Date объект, который при toISOString() даст правильное UTC время
+  // Просто используем localDate - JavaScript автоматически конвертирует при toISOString()
   const getUTCFromLocal = (localDate: Date): Date => {
-    // localDate содержит локальное время (например, 2024-01-01 00:00:00 MSK)
-    // Нужно получить UTC эквивалент
-    // Используем Date.UTC для создания UTC даты из локальных компонентов
-    return new Date(Date.UTC(
-      localDate.getFullYear(),
-      localDate.getMonth(),
-      localDate.getDate(),
-      localDate.getHours(),
-      localDate.getMinutes(),
-      localDate.getSeconds(),
-      localDate.getMilliseconds()
-    ));
+    return localDate;
   };
 
   const generateReportForPeriod = async (period: "today" | "week" | "month" | "year") => {
@@ -331,15 +320,33 @@ function StatsPageContent() {
       // Успешно обновлено
       setEditingMeal(null);
       
-      // Немного задержки для гарантии, что база обновилась
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Перезагружаем отчет с сервера - всегда получаем свежие данные
-      if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
-        await generateReport();
-      } else if (reportPeriod && reportPeriod !== "custom") {
-        await generateReportForPeriod(reportPeriod);
+      // Сразу обновляем локальное состояние
+      if (reportData) {
+        const updated = reportData.map(meal => 
+          meal.id === mealId ? { ...meal, ...updates } : meal
+        );
+        const newTotals = updated.reduce(
+          (acc: any, meal: any) => ({
+            calories: acc.calories + Number(meal.calories || 0),
+            protein: acc.protein + Number(meal.protein || 0),
+            fat: acc.fat + Number(meal.fat || 0),
+            carbs: acc.carbs + Number(meal.carbs || 0)
+          }),
+          { calories: 0, protein: 0, fat: 0, carbs: 0 }
+        );
+        setReportData([...updated]);
+        setReportTotals(newTotals);
+        setReportRefreshKey(prev => prev + 1);
       }
+      
+      // Затем перезагружаем с сервера для синхронизации
+      setTimeout(async () => {
+        if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
+          await generateReport();
+        } else if (reportPeriod && reportPeriod !== "custom") {
+          await generateReportForPeriod(reportPeriod);
+        }
+      }, 200);
     } catch (err: any) {
       console.error("[updateMeal] Исключение:", err);
       setError(err.message || "Ошибка обновления");
@@ -350,7 +357,7 @@ function StatsPageContent() {
 
   useEffect(() => {
     if (view === "report" && reportPeriod) {
-      // Обновляем при фокусе на окне
+      // Обновляем только при фокусе на окне
       const refreshReport = () => {
         if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
           generateReport();
@@ -369,16 +376,10 @@ function StatsPageContent() {
         }
       };
       
-      // Автоматическое обновление каждую секунду для мгновенного появления новых записей
-      const interval = setInterval(() => {
-        refreshReport();
-      }, 1000);
-      
       window.addEventListener("focus", handleFocus);
       document.addEventListener("visibilitychange", handleVisibilityChange);
       
       return () => {
-        clearInterval(interval);
         window.removeEventListener("focus", handleFocus);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
