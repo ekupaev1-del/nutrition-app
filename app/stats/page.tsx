@@ -69,7 +69,14 @@ function StatsPageContent() {
     
     try {
       // Добавляем timestamp для предотвращения кеширования
-      const response = await fetch(`/api/meals?userId=${userId}&_t=${Date.now()}`);
+      const response = await fetch(`/api/meals?userId=${userId}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       const data = await response.json();
       if (data.error) {
         setError(data.error);
@@ -140,7 +147,15 @@ function StatsPageContent() {
       // Конвертируем в ISO строки - Supabase работает с UTC
       // Добавляем timestamp для предотвращения кеширования
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}&_t=${Date.now()}`
+        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
       );
       const data = await response.json();
       if (data.error) {
@@ -278,11 +293,11 @@ function StatsPageContent() {
       // Загружаем сразу
       loadMealsForEdit();
       
-      // Устанавливаем интервал для периодического обновления списка (каждые 2 секунды)
+      // Устанавливаем интервал для периодического обновления списка (каждую секунду)
       const interval = setInterval(() => {
         console.log("[stats] Автообновление списка в редакторе...");
         loadMealsForEdit(false); // Не показываем loading при автообновлении
-      }, 2000);
+      }, 1000);
       
       // Обновляем при фокусе на окне (когда пользователь возвращается в редактор)
       const handleFocus = () => {
@@ -319,8 +334,8 @@ function StatsPageContent() {
       // Обновляем сразу при открытии отчета
       refreshReport();
       
-      // Устанавливаем интервал для периодического обновления отчета (каждые 3 секунды)
-      const interval = setInterval(refreshReport, 3000);
+      // Устанавливаем интервал для периодического обновления отчета (каждую секунду)
+      const interval = setInterval(refreshReport, 1000);
       
       // Обновляем при фокусе на окне
       const handleFocus = () => {
