@@ -39,19 +39,28 @@ export async function GET(req: Request) {
 
   // Получаем приемы пищи за период
   // Используем правильное сравнение дат с учетом часового пояса
+  // Расширяем диапазон на ±1 час для надежности
+  const startDate = new Date(start);
+  startDate.setHours(startDate.getUTCHours() - 1, 0, 0, 0);
+  const endDate = new Date(end);
+  endDate.setHours(endDate.getUTCHours() + 1, 59, 59, 999);
+  
   const { data: meals, error } = await supabase
     .from("diary")
     .select("*")
     .eq("user_id", user.telegram_id)
-    .gte("created_at", start)
-    .lte("created_at", end)
+    .gte("created_at", startDate.toISOString())
+    .lte("created_at", endDate.toISOString())
     .order("created_at", { ascending: true });
 
   console.log("[/api/report] Запрос:", {
     user_id: user.telegram_id,
-    start,
-    end,
-    found_meals: meals?.length || 0
+    start_original: start,
+    end_original: end,
+    start_expanded: startDate.toISOString(),
+    end_expanded: endDate.toISOString(),
+    found_meals: meals?.length || 0,
+    meal_dates: meals?.map(m => m.created_at) || []
   });
 
   if (error) {

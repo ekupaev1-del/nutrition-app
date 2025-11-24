@@ -116,33 +116,48 @@ function StatsPageContent() {
       }
 
       const now = new Date();
-      let start = new Date(now);
-      let end = new Date(now);
+      // Получаем локальное время начала и конца дня
+      const localStart = new Date(now);
+      localStart.setHours(0, 0, 0, 0);
+      const localEnd = new Date(now);
+      localEnd.setHours(23, 59, 59, 999);
+      
+      // Конвертируем локальное время в UTC
+      // getTimezoneOffset возвращает смещение в минутах (положительное для часовых поясов западнее UTC)
+      const timezoneOffset = now.getTimezoneOffset(); // минуты
+      const offsetMs = timezoneOffset * 60 * 1000;
+      
+      // Начало дня в UTC = локальное начало дня минус смещение
+      let start = new Date(localStart.getTime() - offsetMs);
+      // Конец дня в UTC = локальный конец дня минус смещение
+      let end = new Date(localEnd.getTime() - offsetMs);
 
       switch (period) {
         case "today":
-          // Начало сегодняшнего дня (00:00:00)
-          start.setHours(0, 0, 0, 0);
-          // Конец сегодняшнего дня (23:59:59.999)
-          end.setHours(23, 59, 59, 999);
+          // Уже установлено выше
           break;
         case "week":
           // 7 дней назад от начала сегодняшнего дня
-          start.setDate(start.getDate() - 7);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999);
+          const weekStart = new Date(localStart);
+          weekStart.setDate(weekStart.getDate() - 7);
+          weekStart.setHours(0, 0, 0, 0);
+          start = new Date(weekStart.getTime() - offsetMs);
           break;
         case "month":
-          start.setMonth(start.getMonth() - 1);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999);
+          const monthStart = new Date(localStart);
+          monthStart.setMonth(monthStart.getMonth() - 1);
+          monthStart.setHours(0, 0, 0, 0);
+          start = new Date(monthStart.getTime() - offsetMs);
           break;
         case "year":
-          start.setFullYear(start.getFullYear() - 1);
-          start.setHours(0, 0, 0, 0);
-          end.setHours(23, 59, 59, 999);
+          const yearStart = new Date(localStart);
+          yearStart.setFullYear(yearStart.getFullYear() - 1);
+          yearStart.setHours(0, 0, 0, 0);
+          start = new Date(yearStart.getTime() - offsetMs);
           break;
       }
+      
+      console.log(`[generateReportForPeriod] Период: ${period}, Локальное время: ${localStart.toLocaleString()} - ${localEnd.toLocaleString()}, UTC: ${start.toISOString()} - ${end.toISOString()}`);
 
       // Конвертируем в ISO строки - Supabase работает с UTC
       // Добавляем timestamp для предотвращения кеширования
@@ -181,10 +196,19 @@ function StatsPageContent() {
 
     setLoading(true);
     try {
-      const start = new Date(reportStartDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(reportEndDate);
-      end.setHours(23, 59, 59, 999);
+      // Получаем локальное время начала и конца дня
+      const localStart = new Date(reportStartDate);
+      localStart.setHours(0, 0, 0, 0);
+      const localEnd = new Date(reportEndDate);
+      localEnd.setHours(23, 59, 59, 999);
+      
+      // Конвертируем в UTC
+      const timezoneOffset = new Date().getTimezoneOffset();
+      const offsetMs = timezoneOffset * 60 * 1000;
+      const start = new Date(localStart.getTime() - offsetMs);
+      const end = new Date(localEnd.getTime() - offsetMs);
+      
+      console.log(`[generateReport] Выбранный период, Локальное: ${localStart.toLocaleString()} - ${localEnd.toLocaleString()}, UTC: ${start.toISOString()} - ${end.toISOString()}`);
 
       // Получаем дневную норму пользователя
       const userResponse = await fetch(`/api/user?userId=${userId}`);
