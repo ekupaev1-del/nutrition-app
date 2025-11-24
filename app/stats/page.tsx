@@ -1,11 +1,31 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import "../globals.css";
 
 export const dynamic = 'force-dynamic';
+
+interface Meal {
+  id: number;
+  user_id: number;
+  meal_text: string;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  created_at: string;
+}
+
+interface ReportTotals {
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}
+
+type ReportPeriod = "today" | "week" | "month" | "year" | "custom";
 
 function LoadingFallback() {
   return (
@@ -19,6 +39,7 @@ function StatsPageContent() {
   const searchParams = useSearchParams();
   const userIdParam = searchParams.get("id");
   const initialView = searchParams.get("view") || "menu";
+  
   const [userId, setUserId] = useState<number | null>(null);
   const [view, setView] = useState<"menu" | "report">(initialView as "menu" | "report");
   const [loading, setLoading] = useState(false);
@@ -27,15 +48,15 @@ function StatsPageContent() {
   // Данные для отчета
   const [reportStartDate, setReportStartDate] = useState<string>("");
   const [reportEndDate, setReportEndDate] = useState<string>("");
-  const [reportData, setReportData] = useState<any[] | null>(null);
-  const [reportTotals, setReportTotals] = useState<any>(null);
+  const [reportData, setReportData] = useState<Meal[] | null>(null);
+  const [reportTotals, setReportTotals] = useState<ReportTotals | null>(null);
   const [dailyNorm, setDailyNorm] = useState<number | null>(null);
-  const [reportPeriod, setReportPeriod] = useState<"today" | "week" | "month" | "year" | "custom" | null>(null);
-  const [reportRefreshKey, setReportRefreshKey] = useState(0); // Для принудительного обновления отчетов
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod | null>(null);
 
-  // Данные для редактирования (используется в отчетах)
-  const [editingMeal, setEditingMeal] = useState<any | null>(null);
+  // Данные для редактирования
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
 
+  // Инициализация userId
   useEffect(() => {
     if (userIdParam) {
       const n = Number(userIdParam);
@@ -50,7 +71,7 @@ function StatsPageContent() {
     }
   }, [userIdParam]);
 
-  // Устанавливаем даты по умолчанию (сегодня и неделя назад)
+  // Устанавливаем даты по умолчанию
   useEffect(() => {
     const today = new Date();
     const weekAgo = new Date();
@@ -60,14 +81,89 @@ function StatsPageContent() {
     setReportStartDate(weekAgo.toISOString().split("T")[0]);
   }, []);
 
+  /**
+   * Получает дневную норму пользователя
+   */
+  const fetchDailyNorm = useCallback(async (userId: number) => {
+    try {
+      const response = await fetch(`/api/user?userId=${userId}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      const data = await response.json();
+      if (data.ok && data.calories) {
+        setDailyNorm(data.calories);
+      }
+    } catch (err) {
+      console.error("[fetchDailyNorm] Ошибка:", err);
+    }
+  }, []);
 
-  // Функция для получения UTC времени из локального
-  // Просто используем localDate - JavaScript автоматически конвертирует при toISOString()
-  const getUTCFromLocal = (localDate: Date): Date => {
-    return localDate;
-  };
+  /**
+   * Вычисляет границы периода в локальном времени пользователя
+   * и конвертирует их в UTC для запроса к API
+   */
+  const getPeriodBounds = useCallback((period: ReportPeriod): { startUTC: Date; endUTC: Date } => {
+    const now = new Date();
+    let localStart: Date;
+    let localEnd: Date;
 
-  const generateReportForPeriod = async (period: "today" | "week" | "month" | "year") => {
+    switch (period) {
+      case "today":
+        localStart = new Date(now);
+        localStart.setHours(0, 0, 0, 0);
+        localEnd = new Date(now);
+        localEnd.setHours(23, 59, 59, 999);
+        break;
+      case "week":
+        localEnd = new Date(now);
+        localEnd.setHours(23, 59, 59, 999);
+        localStart = new Date(now);
+        localStart.setDate(localStart.getDate() - 6);
+        localStart.setHours(0, 0, 0, 0);
+        break;
+      case "month":
+        localEnd = new Date(now);
+        localEnd.setHours(23, 59, 59, 999);
+        localStart = new Date(now);
+        localStart.setDate(localStart.getDate() - 29);
+        localStart.setHours(0, 0, 0, 0);
+        break;
+      case "year":
+        localEnd = new Date(now);
+        localEnd.setHours(23, 59, 59, 999);
+        localStart = new Date(now);
+        localStart.setDate(localStart.getDate() - 364);
+        localStart.setHours(0, 0, 0, 0);
+        break;
+      case "custom":
+        localStart = new Date(reportStartDate);
+        localStart.setHours(0, 0, 0, 0);
+        localEnd = new Date(reportEndDate);
+        localEnd.setHours(23, 59, 59, 999);
+        break;
+    }
+
+    // Конвертируем локальное время в UTC
+    // JavaScript автоматически конвертирует при использовании toISOString()
+    return {
+      startUTC: localStart,
+      endUTC: localEnd
+    };
+  }, [reportStartDate, reportEndDate]);
+
+  /**
+   * Загружает отчёт с сервера
+   */
+  const loadReport = useCallback(async (
+    period: ReportPeriod,
+    startUTC: Date,
+    endUTC: Date
+  ) => {
     if (!userId) {
       setError("Пользователь не найден");
       return;
@@ -75,59 +171,15 @@ function StatsPageContent() {
 
     setLoading(true);
     setError(null);
+
     try {
-      // Получаем дневную норму пользователя
-      const userResponse = await fetch(`/api/user?userId=${userId}`);
-      const userData = await userResponse.json();
-      if (userData.calories) {
-        setDailyNorm(userData.calories);
-      }
+      // Получаем дневную норму
+      await fetchDailyNorm(userId);
 
-      const now = new Date();
-      let localStart: Date;
-      let localEnd: Date;
-
-      // Работаем с локальным временем пользователя
-      switch (period) {
-        case "today":
-          localStart = new Date(now);
-          localStart.setHours(0, 0, 0, 0);
-          localEnd = new Date(now);
-          localEnd.setHours(23, 59, 59, 999);
-          break;
-        case "week":
-          // Последние 7 дней (включая сегодня)
-          localEnd = new Date(now);
-          localEnd.setHours(23, 59, 59, 999);
-          localStart = new Date(now);
-          localStart.setDate(localStart.getDate() - 6); // 7 дней назад (включая сегодня)
-          localStart.setHours(0, 0, 0, 0);
-          break;
-        case "month":
-          // Последние 30 дней (включая сегодня)
-          localEnd = new Date(now);
-          localEnd.setHours(23, 59, 59, 999);
-          localStart = new Date(now);
-          localStart.setDate(localStart.getDate() - 29); // 30 дней назад (включая сегодня)
-          localStart.setHours(0, 0, 0, 0);
-          break;
-        case "year":
-          // Последние 365 дней (включая сегодня)
-          localEnd = new Date(now);
-          localEnd.setHours(23, 59, 59, 999);
-          localStart = new Date(now);
-          localStart.setDate(localStart.getDate() - 364); // 365 дней назад (включая сегодня)
-          localStart.setHours(0, 0, 0, 0);
-          break;
-      }
-      
-      // Конвертируем локальное время в UTC для запроса к API
-      const startUTC = getUTCFromLocal(localStart);
-      const endUTC = getUTCFromLocal(localEnd);
-      
       // Запрос к API с timestamp для предотвращения кеширования
+      const timestamp = Date.now();
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${Date.now()}`,
+        `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${timestamp}`,
         {
           cache: 'no-store',
           headers: {
@@ -137,249 +189,171 @@ function StatsPageContent() {
           }
         }
       );
+
       const data = await response.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы, конвертируем в локальное время
-        const filteredMeals = (data.meals || []).filter((meal: any) => {
-          const mealDate = new Date(meal.created_at);
-          // mealDate уже в локальном времени (JavaScript автоматически конвертирует)
-          
-          // Сравниваем только дату (без времени) для правильной фильтрации
-          const mealDateOnly = new Date(mealDate.getFullYear(), mealDate.getMonth(), mealDate.getDate());
-          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
-          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
-          
-          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
-        });
-        
-        // Пересчитываем итоги для отфильтрованных данных
-        const filteredTotals = filteredMeals.reduce(
-          (acc: any, meal: any) => ({
-            calories: acc.calories + Number(meal.calories || 0),
-            protein: acc.protein + Number(meal.protein || 0),
-            fat: acc.fat + Number(meal.fat || 0),
-            carbs: acc.carbs + Number(meal.carbs || 0)
-          }),
-          { calories: 0, protein: 0, fat: 0, carbs: 0 }
-        );
-        
-        // Создаем новый массив для гарантированного обновления React
-        setReportData([...filteredMeals]);
-        setReportTotals({ ...filteredTotals });
-        setReportPeriod(period);
-        setReportRefreshKey(prev => prev + 1);
-        setView("report");
+
+      if (!data.ok) {
+        setError(data.error || "Ошибка загрузки отчёта");
+        setReportData(null);
+        setReportTotals(null);
+        return;
       }
-    } catch (err) {
-      setError("Ошибка генерации отчета");
+
+      // Получаем данные из ответа
+      const meals: Meal[] = data.meals || [];
+
+      // Вычисляем итоги
+      const totals: ReportTotals = meals.reduce(
+        (acc, meal) => ({
+          calories: acc.calories + Number(meal.calories || 0),
+          protein: acc.protein + Number(meal.protein || 0),
+          fat: acc.fat + Number(meal.fat || 0),
+          carbs: acc.carbs + Number(meal.carbs || 0)
+        }),
+        { calories: 0, protein: 0, fat: 0, carbs: 0 }
+      );
+
+      // Обновляем состояние
+      setReportData([...meals]);
+      setReportTotals(totals);
+      setReportPeriod(period);
+      setView("report");
+    } catch (err: any) {
+      console.error("[loadReport] Ошибка:", err);
+      setError(err.message || "Ошибка загрузки отчёта");
+      setReportData(null);
+      setReportTotals(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, fetchDailyNorm]);
 
-  const generateReport = async () => {
-    if (!userId || !reportStartDate || !reportEndDate) {
+  /**
+   * Генерирует отчёт для предустановленного периода
+   */
+  const generateReportForPeriod = useCallback(async (period: "today" | "week" | "month" | "year") => {
+    const { startUTC, endUTC } = getPeriodBounds(period);
+    await loadReport(period, startUTC, endUTC);
+  }, [getPeriodBounds, loadReport]);
+
+  /**
+   * Генерирует отчёт для выбранного периода
+   */
+  const generateReport = useCallback(async () => {
+    if (!reportStartDate || !reportEndDate) {
       setError("Выберите период");
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    try {
-      // Получаем локальное время начала и конца дня
-      const localStart = new Date(reportStartDate);
-      localStart.setHours(0, 0, 0, 0);
-      const localEnd = new Date(reportEndDate);
-      localEnd.setHours(23, 59, 59, 999);
-      
-      // Конвертируем локальное время в UTC для запроса к API
-      const startUTC = getUTCFromLocal(localStart);
-      const endUTC = getUTCFromLocal(localEnd);
-      
-      // Получаем дневную норму пользователя
-      const userResponse = await fetch(`/api/user?userId=${userId}`);
-      const userData = await userResponse.json();
-      if (userData.calories) {
-        setDailyNorm(userData.calories);
-      }
+    const { startUTC, endUTC } = getPeriodBounds("custom");
+    await loadReport("custom", startUTC, endUTC);
+  }, [reportStartDate, reportEndDate, getPeriodBounds, loadReport]);
 
-      // Запрос к API с timestamp для предотвращения кеширования
-      const response = await fetch(
-        `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${Date.now()}`,
-        {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
-        }
-      );
-      const data = await response.json();
-      if (data.error) {
-        setError(data.error);
-      } else {
-        // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы, конвертируем в локальное время
-        const filteredMeals = (data.meals || []).filter((meal: any) => {
-          const mealDate = new Date(meal.created_at);
-          // mealDate уже в локальном времени (JavaScript автоматически конвертирует)
-          
-          // Сравниваем только дату (без времени) для правильной фильтрации
-          const mealDateOnly = new Date(mealDate.getFullYear(), mealDate.getMonth(), mealDate.getDate());
-          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
-          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
-          
-          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
-        });
-        
-        // Пересчитываем итоги для отфильтрованных данных
-        const filteredTotals = filteredMeals.reduce(
-          (acc: any, meal: any) => ({
-            calories: acc.calories + Number(meal.calories || 0),
-            protein: acc.protein + Number(meal.protein || 0),
-            fat: acc.fat + Number(meal.fat || 0),
-            carbs: acc.carbs + Number(meal.carbs || 0)
-          }),
-          { calories: 0, protein: 0, fat: 0, carbs: 0 }
-        );
-        
-        // Создаем новый массив для гарантированного обновления React
-        setReportData([...filteredMeals]);
-        setReportTotals({ ...filteredTotals });
-        setReportPeriod("custom");
-        setReportRefreshKey(prev => prev + 1);
-      }
-    } catch (err) {
-      setError("Ошибка генерации отчета");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteMeal = async (mealId: number) => {
-    if (!confirm("Удалить этот прием пищи?")) return;
+  /**
+   * Обновляет приём пищи
+   */
+  const updateMeal = useCallback(async (mealId: number, updates: Partial<Meal>) => {
+    if (!userId) return;
 
     setLoading(true);
     setError(null);
-    try {
-      const response = await fetch(`/api/meals/${mealId}`, {
-        method: "DELETE"
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok || !data.ok) {
-        const errorMsg = data.error || "Ошибка удаления";
-        setError(errorMsg);
-        return;
-      }
 
-      // Успешно удалено
-      setEditingMeal(null);
-      
-      // Перезагружаем отчет с сервера - всегда получаем свежие данные
-      if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
-        await generateReport();
-      } else if (reportPeriod && reportPeriod !== "custom") {
-        await generateReportForPeriod(reportPeriod);
-      }
-    } catch (err: any) {
-      setError(err.message || "Ошибка удаления");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateMeal = async (mealId: number, updates: any) => {
-    setLoading(true);
-    setError(null);
     try {
       const response = await fetch(`/api/meals/${mealId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
+        body: JSON.stringify(updates),
+        cache: 'no-store'
       });
+
       const data = await response.json();
-      
-      if (!response.ok || !data.ok) {
-        const errorMsg = data.error || "Ошибка обновления";
-        setError(errorMsg);
+
+      if (!data.ok) {
+        setError(data.error || "Ошибка обновления");
         return;
       }
 
-      // Успешно обновлено
+      // Закрываем форму редактирования
       setEditingMeal(null);
-      
-      // Сразу обновляем локальное состояние
-      if (reportData) {
-        const updated = reportData.map(meal => 
-          meal.id === mealId ? { ...meal, ...updates } : meal
-        );
-        const newTotals = updated.reduce(
-          (acc: any, meal: any) => ({
-            calories: acc.calories + Number(meal.calories || 0),
-            protein: acc.protein + Number(meal.protein || 0),
-            fat: acc.fat + Number(meal.fat || 0),
-            carbs: acc.carbs + Number(meal.carbs || 0)
-          }),
-          { calories: 0, protein: 0, fat: 0, carbs: 0 }
-        );
-        setReportData([...updated]);
-        setReportTotals(newTotals);
-        setReportRefreshKey(prev => prev + 1);
+
+      // Перезагружаем отчёт с сервера
+      if (reportPeriod) {
+        const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
+        await loadReport(reportPeriod, startUTC, endUTC);
       }
-      
-      // Затем перезагружаем с сервера для синхронизации
-      setTimeout(async () => {
-        if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
-          await generateReport();
-        } else if (reportPeriod && reportPeriod !== "custom") {
-          await generateReportForPeriod(reportPeriod);
-        }
-      }, 200);
     } catch (err: any) {
-      console.error("[updateMeal] Исключение:", err);
+      console.error("[updateMeal] Ошибка:", err);
       setError(err.message || "Ошибка обновления");
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, reportPeriod, getPeriodBounds, loadReport]);
 
+  /**
+   * Удаляет приём пищи
+   */
+  const deleteMeal = useCallback(async (mealId: number) => {
+    if (!confirm("Удалить этот приём пищи?")) return;
+    if (!userId) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/meals/${mealId}`, {
+        method: "DELETE",
+        cache: 'no-store'
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        setError(data.error || "Ошибка удаления");
+        return;
+      }
+
+      // Закрываем форму редактирования
+      setEditingMeal(null);
+
+      // Перезагружаем отчёт с сервера
+      if (reportPeriod) {
+        const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
+        await loadReport(reportPeriod, startUTC, endUTC);
+      }
+    } catch (err: any) {
+      console.error("[deleteMeal] Ошибка:", err);
+      setError(err.message || "Ошибка удаления");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, reportPeriod, getPeriodBounds, loadReport]);
+
+  /**
+   * Обновление отчёта при фокусе окна
+   */
   useEffect(() => {
-    if (view === "report" && reportPeriod) {
-      // Обновляем только при фокусе на окне
-      const refreshReport = () => {
-        if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
-          generateReport();
-        } else if (reportPeriod !== "custom") {
-          generateReportForPeriod(reportPeriod);
-        }
-      };
-      
+    if (view === "report" && reportPeriod && userId) {
       const handleFocus = () => {
-        refreshReport();
+        const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
+        loadReport(reportPeriod, startUTC, endUTC);
       };
-      
+
       const handleVisibilityChange = () => {
         if (!document.hidden) {
-          refreshReport();
+          const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
+          loadReport(reportPeriod, startUTC, endUTC);
         }
       };
-      
+
       window.addEventListener("focus", handleFocus);
       document.addEventListener("visibilitychange", handleVisibilityChange);
-      
+
       return () => {
         window.removeEventListener("focus", handleFocus);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, userId, reportPeriod, reportStartDate, reportEndDate]);
+  }, [view, reportPeriod, userId, getPeriodBounds, loadReport]);
 
   if (error && !userId) {
     return (
@@ -392,7 +366,7 @@ function StatsPageContent() {
     );
   }
 
-  // Главное меню (только для отчета)
+  // Главное меню
   if (view === "menu") {
     return (
       <div className="min-h-screen bg-background p-4 py-8">
@@ -408,28 +382,32 @@ function StatsPageContent() {
           <div className="space-y-3">
             <button
               onClick={() => generateReportForPeriod("today")}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
+              disabled={loading}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Сегодня
             </button>
 
             <button
               onClick={() => generateReportForPeriod("week")}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
+              disabled={loading}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Неделю
             </button>
 
             <button
               onClick={() => generateReportForPeriod("month")}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
+              disabled={loading}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Месяц
             </button>
 
             <button
               onClick={() => generateReportForPeriod("year")}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
+              disabled={loading}
+              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Год
             </button>
@@ -468,11 +446,8 @@ function StatsPageContent() {
               {reportData && reportPeriod && (
                 <button
                   onClick={() => {
-                    if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
-                      generateReport();
-                    } else if (reportPeriod !== "custom") {
-                      generateReportForPeriod(reportPeriod);
-                    }
+                    const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
+                    loadReport(reportPeriod, startUTC, endUTC);
                   }}
                   disabled={loading}
                   className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
@@ -486,6 +461,7 @@ function StatsPageContent() {
                   setView("menu");
                   setReportData(null);
                   setReportTotals(null);
+                  setReportPeriod(null);
                 }}
                 className="text-textSecondary hover:text-textPrimary"
               >
@@ -538,6 +514,12 @@ function StatsPageContent() {
             </div>
           )}
 
+          {loading && reportData && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm mb-4">
+              Обновление...
+            </div>
+          )}
+
           {editingMeal ? (
             <EditMealForm
               meal={editingMeal}
@@ -558,13 +540,10 @@ function StatsPageContent() {
                         else if (reportPeriod === "month") periodNorm = dailyNorm * 30;
                         else if (reportPeriod === "year") periodNorm = dailyNorm * 365;
                         else if (reportPeriod === "custom") {
-                          // Для выбранного периода считаем количество дней
                           const start = new Date(reportStartDate);
                           const end = new Date(reportEndDate);
                           const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                           periodNorm = dailyNorm * days;
-                        } else if (reportPeriod === "today") {
-                          periodNorm = dailyNorm;
                         }
                         const percentage = (reportTotals.calories / periodNorm) * 100;
                         return (
@@ -591,9 +570,7 @@ function StatsPageContent() {
                 ) : (
                   reportData.map((meal, index) => {
                     // Конвертируем UTC из базы в локальное время для отображения
-                    const mealDateUTC = new Date(meal.created_at);
-                    // Создаем дату в локальном времени
-                    const mealDate = new Date(mealDateUTC.getTime() - mealDateUTC.getTimezoneOffset() * 60000);
+                    const mealDate = new Date(meal.created_at);
                     
                     const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
                     const dayName = dayNames[mealDate.getDay()];
@@ -603,20 +580,16 @@ function StatsPageContent() {
                       year: "numeric"
                     });
                     
-                    // Проверяем, нужно ли показывать дату (если это первая запись или дата отличается от предыдущей)
+                    // Проверяем, нужно ли показывать дату
                     const prevMeal = index > 0 ? reportData[index - 1] : null;
                     let showDate = true;
                     if (prevMeal) {
-                      const prevDateUTC = new Date(prevMeal.created_at);
-                      const prevDate = new Date(prevDateUTC.getTime() - prevDateUTC.getTimezoneOffset() * 60000);
-                      // Сравниваем только дату (без времени)
+                      const prevDate = new Date(prevMeal.created_at);
                       showDate = mealDate.toDateString() !== prevDate.toDateString();
                     }
                     
-                    const mealKey = `${meal.id}-${reportRefreshKey}-${index}`;
-                    
                     return (
-                      <div key={mealKey}>
+                      <div key={meal.id}>
                         {showDate && (
                           <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
                             🗓️ {formattedDate} {dayName}
@@ -654,7 +627,6 @@ function StatsPageContent() {
     );
   }
 
-
   return null;
 }
 
@@ -664,8 +636,8 @@ function EditMealForm({
   onCancel,
   onDelete
 }: {
-  meal: any;
-  onSave: (updates: any) => void;
+  meal: Meal;
+  onSave: (updates: Partial<Meal>) => void;
   onCancel: () => void;
   onDelete: () => void;
 }) {
@@ -676,13 +648,6 @@ function EditMealForm({
   const [carbs, setCarbs] = useState(meal.carbs?.toString() || "0");
 
   const handleSave = () => {
-    console.log("[EditMealForm] handleSave вызван, данные:", {
-      meal_text: mealText,
-      calories: Number(calories),
-      protein: Number(protein),
-      fat: Number(fat),
-      carbs: Number(carbs)
-    });
     onSave({
       meal_text: mealText,
       calories: Number(calories),
@@ -782,4 +747,3 @@ export default function StatsPage() {
     </Suspense>
   );
 }
-
