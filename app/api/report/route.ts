@@ -38,12 +38,11 @@ export async function GET(req: Request) {
   }
 
   // Получаем приемы пищи за период
-  // Используем правильное сравнение дат с учетом часового пояса
-  // Расширяем диапазон на ±1 час для надежности
+  // Расширяем диапазон на ±12 часов для покрытия всех часовых поясов
   const startDate = new Date(start);
-  startDate.setHours(startDate.getUTCHours() - 1, 0, 0, 0);
+  startDate.setUTCHours(startDate.getUTCHours() - 12, 0, 0, 0);
   const endDate = new Date(end);
-  endDate.setHours(endDate.getUTCHours() + 1, 59, 59, 999);
+  endDate.setUTCHours(endDate.getUTCHours() + 12, 59, 59, 999);
   
   const { data: meals, error } = await supabase
     .from("diary")
@@ -60,7 +59,7 @@ export async function GET(req: Request) {
     start_expanded: startDate.toISOString(),
     end_expanded: endDate.toISOString(),
     found_meals: meals?.length || 0,
-    meal_dates: meals?.map(m => m.created_at) || []
+    meal_dates: meals?.slice(0, 5).map(m => m.created_at) || []
   });
 
   if (error) {
