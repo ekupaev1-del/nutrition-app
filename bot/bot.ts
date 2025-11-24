@@ -463,7 +463,7 @@ interface NotFoodResponse {
   message: string;
 }
 
-async function analyzeFoodWithOpenAI(userInput: string): Promise<MealAnalysis | null> {
+async function analyzeFoodWithOpenAI(userInput: string): Promise<MealAnalysis | NotFoodResponse | null> {
   try {
     console.log(`[OpenAI] Начинаю анализ: "${userInput}"`);
     
@@ -1011,10 +1011,13 @@ bot.on("text", async (ctx) => {
         ctx.chat!.id,
         processingMsg.message_id,
         undefined,
-        analysis.message
+        (analysis as NotFoodResponse).message
       );
       return;
     }
+
+    // Type guard: после проверки analysis гарантированно MealAnalysis
+    const mealAnalysis = analysis as MealAnalysis;
 
     // Убеждаемся, что пользователь существует в таблице users
     const { data: existingUser } = await supabase
@@ -1046,11 +1049,11 @@ bot.on("text", async (ctx) => {
     // Сохраняем в базу
     const { error: insertError } = await supabase.from("diary").insert({
       user_id: telegram_id,
-      meal_text: analysis.description,
-      calories: analysis.calories,
-      protein: analysis.protein,
-      fat: analysis.fat,
-      carbs: analysis.carbs
+      meal_text: mealAnalysis.description,
+      calories: mealAnalysis.calories,
+      protein: mealAnalysis.protein,
+      fat: mealAnalysis.fat,
+      carbs: mealAnalysis.carbs
     });
 
     if (insertError) {
@@ -1069,7 +1072,7 @@ bot.on("text", async (ctx) => {
     const dailyNorm = await getUserDailyNorm(telegram_id);
 
     // Формируем ответ
-    const response = `✅ Добавлено:\n${analysis.description}\n🔥 ${analysis.calories} ккал | 🥚 ${analysis.protein.toFixed(1)}г | 🥥 ${analysis.fat.toFixed(1)}г | 🍚 ${analysis.carbs.toFixed(1)}г\n\n${formatProgressMessage(todayMeals, dailyNorm)}`;
+    const response = `✅ Добавлено:\n${mealAnalysis.description}\n🔥 ${mealAnalysis.calories} ккал | 🥚 ${mealAnalysis.protein.toFixed(1)}г | 🥥 ${mealAnalysis.fat.toFixed(1)}г | 🍚 ${mealAnalysis.carbs.toFixed(1)}г\n\n${formatProgressMessage(todayMeals, dailyNorm)}`;
 
     await ctx.telegram.editMessageText(
       ctx.chat!.id,
@@ -1373,11 +1376,11 @@ bot.on("photo", async (ctx) => {
     // Сохраняем в базу
     const { error: insertError } = await supabase.from("diary").insert({
       user_id: telegram_id,
-      meal_text: analysis.description,
-      calories: analysis.calories,
-      protein: analysis.protein,
-      fat: analysis.fat,
-      carbs: analysis.carbs
+      meal_text: mealAnalysis.description,
+      calories: mealAnalysis.calories,
+      protein: mealAnalysis.protein,
+      fat: mealAnalysis.fat,
+      carbs: mealAnalysis.carbs
     });
 
     if (insertError) {
@@ -1396,7 +1399,7 @@ bot.on("photo", async (ctx) => {
     const dailyNorm = await getUserDailyNorm(telegram_id);
 
     // Формируем ответ
-    const response = `✅ Добавлено:\n${analysis.description}\n🔥 ${analysis.calories} ккал | 🥚 ${analysis.protein.toFixed(1)}г | 🥥 ${analysis.fat.toFixed(1)}г | 🍚 ${analysis.carbs.toFixed(1)}г\n\n${formatProgressMessage(todayMeals, dailyNorm)}`;
+    const response = `✅ Добавлено:\n${mealAnalysis.description}\n🔥 ${mealAnalysis.calories} ккал | 🥚 ${mealAnalysis.protein.toFixed(1)}г | 🥥 ${mealAnalysis.fat.toFixed(1)}г | 🍚 ${mealAnalysis.carbs.toFixed(1)}г\n\n${formatProgressMessage(todayMeals, dailyNorm)}`;
 
     await ctx.telegram.editMessageText(
       ctx.chat!.id,
@@ -1543,11 +1546,11 @@ bot.on("voice", async (ctx) => {
     // Сохраняем в базу
     const { error: insertError } = await supabase.from("diary").insert({
       user_id: telegram_id,
-      meal_text: analysis.description,
-      calories: analysis.calories,
-      protein: analysis.protein,
-      fat: analysis.fat,
-      carbs: analysis.carbs
+      meal_text: mealAnalysis.description,
+      calories: mealAnalysis.calories,
+      protein: mealAnalysis.protein,
+      fat: mealAnalysis.fat,
+      carbs: mealAnalysis.carbs
     });
 
     if (insertError) {
@@ -1566,7 +1569,7 @@ bot.on("voice", async (ctx) => {
     const dailyNorm = await getUserDailyNorm(telegram_id);
 
     // Формируем ответ
-    const response = `✅ Добавлено:\n${analysis.description}\n🔥 ${analysis.calories} ккал | 🥚 ${analysis.protein.toFixed(1)}г | 🥥 ${analysis.fat.toFixed(1)}г | 🍚 ${analysis.carbs.toFixed(1)}г\n\n${formatProgressMessage(todayMeals, dailyNorm)}`;
+    const response = `✅ Добавлено:\n${mealAnalysis.description}\n🔥 ${mealAnalysis.calories} ккал | 🥚 ${mealAnalysis.protein.toFixed(1)}г | 🥥 ${mealAnalysis.fat.toFixed(1)}г | 🍚 ${mealAnalysis.carbs.toFixed(1)}г\n\n${formatProgressMessage(todayMeals, dailyNorm)}`;
 
     await ctx.telegram.editMessageText(
       ctx.chat!.id,
