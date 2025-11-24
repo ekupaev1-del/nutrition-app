@@ -147,18 +147,18 @@ function StatsPageContent() {
         setError(data.error);
       } else {
         // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы, нужно конвертировать в локальное время для сравнения
+        // meal.created_at приходит в UTC из базы
         const filteredMeals = (data.meals || []).filter((meal: any) => {
           const mealDateUTC = new Date(meal.created_at);
-          // Конвертируем UTC в локальное время для сравнения
-          const mealLocal = new Date(mealDateUTC.getTime() - mealDateUTC.getTimezoneOffset() * 60000);
+          // Получаем локальное время из UTC
+          const mealLocalTime = new Date(mealDateUTC);
           
-          // Сравниваем только дату (без времени) для правильной фильтрации
-          const mealDateOnly = new Date(mealLocal.getFullYear(), mealLocal.getMonth(), mealLocal.getDate());
-          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
-          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
+          // Сравниваем timestamp напрямую с локальными датами
+          const mealTimestamp = mealLocalTime.getTime();
+          const startTimestamp = localStart.getTime();
+          const endTimestamp = localEnd.getTime();
           
-          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
+          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
         });
         
         // Пересчитываем итоги для отфильтрованных данных
@@ -229,18 +229,18 @@ function StatsPageContent() {
         setError(data.error);
       } else {
         // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы, нужно конвертировать в локальное время для сравнения
+        // meal.created_at приходит в UTC из базы
         const filteredMeals = (data.meals || []).filter((meal: any) => {
           const mealDateUTC = new Date(meal.created_at);
-          // Конвертируем UTC в локальное время для сравнения
-          const mealLocal = new Date(mealDateUTC.getTime() - mealDateUTC.getTimezoneOffset() * 60000);
+          // Получаем локальное время из UTC
+          const mealLocalTime = new Date(mealDateUTC);
           
-          // Сравниваем только дату (без времени) для правильной фильтрации
-          const mealDateOnly = new Date(mealLocal.getFullYear(), mealLocal.getMonth(), mealLocal.getDate());
-          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
-          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
+          // Сравниваем timestamp напрямую с локальными датами
+          const mealTimestamp = mealLocalTime.getTime();
+          const startTimestamp = localStart.getTime();
+          const endTimestamp = localEnd.getTime();
           
-          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
+          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
         });
         
         // Пересчитываем итоги для отфильтрованных данных

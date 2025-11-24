@@ -42,10 +42,10 @@ export async function GET(req: Request) {
   const startDate = new Date(start);
   const endDate = new Date(end);
   
-  // Расширяем диапазон на 2 дня в обе стороны для надежности (чтобы точно захватить все записи)
-  startDate.setUTCDate(startDate.getUTCDate() - 2);
+  // Расширяем диапазон на 3 дня в обе стороны для надежности (чтобы точно захватить все записи независимо от часового пояса)
+  startDate.setUTCDate(startDate.getUTCDate() - 3);
   startDate.setUTCHours(0, 0, 0, 0);
-  endDate.setUTCDate(endDate.getUTCDate() + 2);
+  endDate.setUTCDate(endDate.getUTCDate() + 3);
   endDate.setUTCHours(23, 59, 59, 999);
   
   const { data: meals, error } = await supabase
@@ -61,16 +61,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  // Подсчитываем итоги
-  const totals = (meals || []).reduce(
-    (acc, meal) => ({
-      calories: acc.calories + Number(meal.calories || 0),
-      protein: acc.protein + Number(meal.protein || 0),
-      fat: acc.fat + Number(meal.fat || 0),
-      carbs: acc.carbs + Number(meal.carbs || 0)
-    }),
-    { calories: 0, protein: 0, fat: 0, carbs: 0 }
-  );
-
-  return NextResponse.json({ ok: true, meals: meals || [], totals });
+  // Возвращаем ВСЕ данные - фильтрация будет на клиенте
+  // Это гарантирует, что мы не потеряем записи из-за проблем с часовыми поясами
+  return NextResponse.json({ ok: true, meals: meals || [], totals: null }); // totals будет считаться на клиенте после фильтрации
 }
