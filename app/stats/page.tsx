@@ -31,10 +31,12 @@ function StatsPageContent() {
   const [reportTotals, setReportTotals] = useState<any>(null);
   const [dailyNorm, setDailyNorm] = useState<number | null>(null);
   const [reportPeriod, setReportPeriod] = useState<"today" | "week" | "month" | "year" | "custom" | null>(null);
+  const [reportRefreshKey, setReportRefreshKey] = useState(0); // Для принудительного обновления отчетов
 
   // Данные для редактирования
   const [mealsList, setMealsList] = useState<any[]>([]);
   const [editingMeal, setEditingMeal] = useState<any | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0); // Для принудительного обновления
 
   useEffect(() => {
     if (userIdParam) {
@@ -87,19 +89,9 @@ function StatsPageContent() {
         console.log("[loadMealsForEdit] Первые 3 записи:", meals.slice(0, 3).map(m => ({ id: m.id, text: m.meal_text, created_at: m.created_at })));
         // Принудительно обновляем список - создаем новый массив для гарантии обновления React
         setMealsList([...meals]);
-        console.log("[loadMealsForEdit] setMealsList вызван с", meals.length, "записями");
-        // Дополнительная проверка через setTimeout для гарантии обновления
-        setTimeout(() => {
-          setMealsList(prev => {
-            const currentIds = prev.map(m => m.id).sort();
-            const newIds = meals.map(m => m.id).sort();
-            if (JSON.stringify(currentIds) !== JSON.stringify(newIds)) {
-              console.log("[loadMealsForEdit] Обнаружено несоответствие, обновляем список");
-              return [...meals];
-            }
-            return prev;
-          });
-        }, 100);
+        // Принудительно обновляем refreshKey для гарантии ре-рендера
+        setRefreshKey(prev => prev + 1);
+        console.log("[loadMealsForEdit] setMealsList вызван с", meals.length, "записями, refreshKey обновлен");
         return meals;
       }
     } catch (err) {
@@ -193,6 +185,7 @@ function StatsPageContent() {
         setReportData(data.meals || []);
         setReportTotals(data.totals || null);
         setReportPeriod(period);
+        setReportRefreshKey(prev => prev + 1); // Принудительно обновляем отчет
         setView("report");
       }
     } catch (err) {
@@ -250,6 +243,7 @@ function StatsPageContent() {
         setReportData(data.meals || []);
         setReportTotals(data.totals || null);
         setReportPeriod("custom");
+        setReportRefreshKey(prev => prev + 1); // Принудительно обновляем отчет
       }
     } catch (err) {
       setError("Ошибка генерации отчета");
@@ -287,11 +281,14 @@ function StatsPageContent() {
       setMealsList(prevMeals => {
         const filtered = prevMeals.filter(meal => meal.id !== mealId);
         console.log("[deleteMeal] Список обновлен локально, было:", prevMeals.length, "стало:", filtered.length);
-        return filtered;
+        return [...filtered]; // Создаем новый массив
       });
       
+      // Принудительно обновляем refreshKey
+      setRefreshKey(prev => prev + 1);
+      
       // Затем перезагружаем с сервера для синхронизации
-      await loadMealsForEdit();
+      await loadMealsForEdit(false);
     } catch (err: any) {
       console.error("[deleteMeal] Исключение:", err);
       setError(err.message || "Ошибка удаления");
@@ -324,8 +321,11 @@ function StatsPageContent() {
       console.log("[updateMeal] Успешно обновлено, обновляем список...");
       setEditingMeal(null);
       
+      // Принудительно обновляем refreshKey
+      setRefreshKey(prev => prev + 1);
+      
       // Перезагружаем список с сервера
-      await loadMealsForEdit();
+      await loadMealsForEdit(false);
     } catch (err: any) {
       console.error("[updateMeal] Исключение:", err);
       setError(err.message || "Ошибка обновления");
@@ -339,11 +339,11 @@ function StatsPageContent() {
       // Загружаем сразу
       loadMealsForEdit();
       
-      // Устанавливаем интервал для периодического обновления списка (каждую секунду)
+      // Устанавливаем интервал для периодического обновления списка (каждые 500мс)
       const interval = setInterval(() => {
         console.log("[stats] Автообновление списка в редакторе...");
         loadMealsForEdit(false); // Не показываем loading при автообновлении
-      }, 1000);
+      }, 500);
       
       // Обновляем при фокусе на окне (когда пользователь возвращается в редактор)
       const handleFocus = () => {
@@ -380,8 +380,8 @@ function StatsPageContent() {
       // Обновляем сразу при открытии отчета
       refreshReport();
       
-      // Устанавливаем интервал для периодического обновления отчета (каждую секунду)
-      const interval = setInterval(refreshReport, 1000);
+      // Устанавливаем интервал для периодического обновления отчета (каждые 500мс)
+      const interval = setInterval(refreshReport, 500);
       
       // Обновляем при фокусе на окне
       const handleFocus = () => {
@@ -587,6 +587,8 @@ function StatsPageContent() {
               <div className="space-y-3">
                 <h3 className="font-semibold text-textPrimary">Приемы пищи:</h3>
                 {reportData.map((meal, index) => {
+                  // Используем refreshKey для принудительного обновления
+                  const mealKey = `${meal.id}-${reportRefreshKey}-${index}`;
                   const date = new Date(meal.created_at);
                   const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
                   const dayName = dayNames[date.getDay()];
@@ -602,8 +604,11 @@ function StatsPageContent() {
                   const showDate = !prevDate || 
                     date.toDateString() !== prevDate.toDateString();
                   
+                  // Используем уникальный ключ для принудительного обновления
+                  const mealKey = `${meal.id}-${Date.now()}-${index}`;
+                  
                   return (
-                    <div key={meal.id}>
+                    <div key={mealKey}>
                       {showDate && (
                         <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
                           🗓️ {formattedDate} {dayName}
@@ -673,6 +678,8 @@ function StatsPageContent() {
                 </div>
               ) : (
                 mealsList.map((meal, index) => {
+                  // Используем refreshKey для принудительного обновления
+                  const mealKey = `${meal.id}-${refreshKey}`;
                   const date = new Date(meal.created_at);
                   const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
                   const dayName = dayNames[date.getDay()];
@@ -688,8 +695,11 @@ function StatsPageContent() {
                   const showDate = !prevDate || 
                     date.toDateString() !== prevDate.toDateString();
                   
+                  // Используем refreshKey для принудительного обновления
+                  const mealKey = `${meal.id}-${refreshKey}`;
+                  
                   return (
-                    <div key={meal.id}>
+                    <div key={mealKey}>
                       {showDate && (
                         <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
                           🗓️ {formattedDate} {dayName}
