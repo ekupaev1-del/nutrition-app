@@ -77,7 +77,23 @@ function StatsPageContent() {
       } else {
         const meals = data.meals || [];
         console.log("[loadMealsForEdit] Загружено записей:", meals.length);
-        setMealsList(meals);
+        // Принудительно обновляем список, даже если количество не изменилось
+        setMealsList(prevMeals => {
+          // Проверяем, изменился ли список (по ID записей)
+          const prevIds = new Set(prevMeals.map(m => m.id));
+          const newIds = new Set(meals.map(m => m.id));
+          const hasChanges = prevMeals.length !== meals.length || 
+            [...newIds].some(id => !prevIds.has(id)) ||
+            [...prevIds].some(id => !newIds.has(id));
+          
+          if (hasChanges) {
+            console.log("[loadMealsForEdit] Обнаружены изменения в списке, обновляем...");
+            return meals;
+          }
+          
+          // Если изменений нет, но данные могут быть обновлены, все равно обновляем
+          return meals;
+        });
         return meals;
       }
     } catch (err) {
@@ -279,13 +295,33 @@ function StatsPageContent() {
       // Загружаем сразу
       loadMealsForEdit();
       
-      // Устанавливаем интервал для периодического обновления списка (каждые 3 секунды)
+      // Устанавливаем интервал для периодического обновления списка (каждые 2 секунды)
       const interval = setInterval(() => {
         console.log("[stats] Автообновление списка...");
         loadMealsForEdit(false); // Не показываем loading при автообновлении
-      }, 3000);
+      }, 2000);
       
-      return () => clearInterval(interval);
+      // Обновляем при фокусе на окне (когда пользователь возвращается в редактор)
+      const handleFocus = () => {
+        console.log("[stats] Окно получило фокус, обновляем список...");
+        loadMealsForEdit(false);
+      };
+      
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          console.log("[stats] Вкладка стала видимой, обновляем список...");
+          loadMealsForEdit(false);
+        }
+      };
+      
+      window.addEventListener("focus", handleFocus);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("focus", handleFocus);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, userId]);
