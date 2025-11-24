@@ -46,7 +46,12 @@ if (openaiApiKey === "sk-your-openai-api-key-here") {
 
 // Инициализация
 const bot = new Telegraf(token);
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 const openai = new OpenAI({ apiKey: openaiApiKey });
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
