@@ -77,23 +77,8 @@ function StatsPageContent() {
       } else {
         const meals = data.meals || [];
         console.log("[loadMealsForEdit] Загружено записей:", meals.length);
-        // Принудительно обновляем список, даже если количество не изменилось
-        setMealsList(prevMeals => {
-          // Проверяем, изменился ли список (по ID записей)
-          const prevIds = new Set(prevMeals.map(m => m.id));
-          const newIds = new Set(meals.map(m => m.id));
-          const hasChanges = prevMeals.length !== meals.length || 
-            [...newIds].some(id => !prevIds.has(id)) ||
-            [...prevIds].some(id => !newIds.has(id));
-          
-          if (hasChanges) {
-            console.log("[loadMealsForEdit] Обнаружены изменения в списке, обновляем...");
-            return meals;
-          }
-          
-          // Если изменений нет, но данные могут быть обновлены, все равно обновляем
-          return meals;
-        });
+        // Всегда обновляем список - React сам определит, нужно ли перерисовывать
+        setMealsList(meals);
         return meals;
       }
     } catch (err) {
