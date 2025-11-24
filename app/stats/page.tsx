@@ -194,8 +194,11 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        await loadMealsForEdit();
+        // Обновляем список, удаляя удаленный элемент
+        setMealsList(prevMeals => prevMeals.filter(meal => meal.id !== mealId));
         setEditingMeal(null);
+        // Также перезагружаем для синхронизации
+        await loadMealsForEdit();
       }
     } catch (err) {
       setError("Ошибка удаления");
@@ -497,28 +500,48 @@ function StatsPageContent() {
                   Нет записей о приемах пищи
                 </div>
               ) : (
-                mealsList.map((meal) => {
+                mealsList.map((meal, index) => {
                   const date = new Date(meal.created_at);
+                  const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+                  const dayName = dayNames[date.getDay()];
+                  const formattedDate = date.toLocaleDateString("ru-RU", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric"
+                  });
+                  
+                  // Проверяем, нужно ли показывать дату (если это первая запись или дата отличается от предыдущей)
+                  const prevMeal = index > 0 ? mealsList[index - 1] : null;
+                  const prevDate = prevMeal ? new Date(prevMeal.created_at) : null;
+                  const showDate = !prevDate || 
+                    date.toDateString() !== prevDate.toDateString();
+                  
                   return (
-                    <div
-                      key={meal.id}
-                      className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors cursor-pointer"
-                      onClick={() => setEditingMeal(meal)}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-medium text-textPrimary mb-1">{meal.meal_text}</div>
-                          <div className="text-xs text-textSecondary mb-2">
-                            {date.toLocaleDateString("ru-RU")} {date.toLocaleTimeString("ru-RU", {
-                              hour: "2-digit",
-                              minute: "2-digit"
-                            })}
-                          </div>
-                          <div className="text-sm text-textSecondary">
-                            🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
-                          </div>
+                    <div key={meal.id}>
+                      {showDate && (
+                        <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
+                          🗓️ {formattedDate} {dayName}
                         </div>
-                        <span className="text-textSecondary">✏️</span>
+                      )}
+                      <div
+                        className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors cursor-pointer"
+                        onClick={() => setEditingMeal(meal)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="font-medium text-textPrimary mb-1">{meal.meal_text}</div>
+                            <div className="text-xs text-textSecondary mb-2">
+                              {date.toLocaleTimeString("ru-RU", {
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
+                            </div>
+                            <div className="text-sm text-textSecondary">
+                              🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
+                            </div>
+                          </div>
+                          <span className="text-textSecondary">✏️</span>
+                        </div>
                       </div>
                     </div>
                   );
