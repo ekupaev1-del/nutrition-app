@@ -102,6 +102,17 @@ function StatsPageContent() {
     }
   };
 
+  // Функция для конвертации локального времени в UTC для запроса к API
+  // localDate - это Date объект с локальным временем (например, 2024-01-01 00:00:00 MSK)
+  // Нужно получить UTC эквивалент для этого локального времени
+  const localToUTC = (localDate: Date): Date => {
+    // localDate уже содержит локальное время
+    // getTime() возвращает timestamp в миллисекундах (UTC)
+    // Но нам нужно создать Date объект, который при toISOString() даст правильное UTC время
+    // Просто используем localDate как есть - JavaScript автоматически конвертирует при toISOString()
+    return localDate;
+  };
+
   const generateReportForPeriod = async (period: "today" | "week" | "month" | "year") => {
     if (!userId) {
       setError("Пользователь не найден");
@@ -119,51 +130,50 @@ function StatsPageContent() {
       }
 
       const now = new Date();
-      // Получаем локальное время начала и конца дня
-      const localStart = new Date(now);
-      localStart.setHours(0, 0, 0, 0);
-      const localEnd = new Date(now);
-      localEnd.setHours(23, 59, 59, 999);
-      
-      // Конвертируем локальное время в UTC
-      // getTimezoneOffset возвращает смещение в минутах (положительное для часовых поясов западнее UTC)
-      const timezoneOffset = now.getTimezoneOffset(); // минуты
-      const offsetMs = timezoneOffset * 60 * 1000;
-      
-      // Начало дня в UTC = локальное начало дня минус смещение
-      let start = new Date(localStart.getTime() - offsetMs);
-      // Конец дня в UTC = локальный конец дня минус смещение
-      let end = new Date(localEnd.getTime() - offsetMs);
+      let localStart: Date;
+      let localEnd: Date;
 
+      // Работаем с локальным временем пользователя
       switch (period) {
         case "today":
-          // Уже установлено выше
+          localStart = new Date(now);
+          localStart.setHours(0, 0, 0, 0);
+          localEnd = new Date(now);
+          localEnd.setHours(23, 59, 59, 999);
           break;
         case "week":
-          // 7 дней назад от начала сегодняшнего дня
-          const weekStart = new Date(localStart);
-          weekStart.setDate(weekStart.getDate() - 7);
-          weekStart.setHours(0, 0, 0, 0);
-          start = new Date(weekStart.getTime() - offsetMs);
+          // Последние 7 дней (включая сегодня)
+          localEnd = new Date(now);
+          localEnd.setHours(23, 59, 59, 999);
+          localStart = new Date(now);
+          localStart.setDate(localStart.getDate() - 6); // 7 дней назад (включая сегодня)
+          localStart.setHours(0, 0, 0, 0);
           break;
         case "month":
-          const monthStart = new Date(localStart);
-          monthStart.setMonth(monthStart.getMonth() - 1);
-          monthStart.setHours(0, 0, 0, 0);
-          start = new Date(monthStart.getTime() - offsetMs);
+          // Последние 30 дней (включая сегодня)
+          localEnd = new Date(now);
+          localEnd.setHours(23, 59, 59, 999);
+          localStart = new Date(now);
+          localStart.setDate(localStart.getDate() - 29); // 30 дней назад (включая сегодня)
+          localStart.setHours(0, 0, 0, 0);
           break;
         case "year":
-          const yearStart = new Date(localStart);
-          yearStart.setFullYear(yearStart.getFullYear() - 1);
-          yearStart.setHours(0, 0, 0, 0);
-          start = new Date(yearStart.getTime() - offsetMs);
+          // Последние 365 дней (включая сегодня)
+          localEnd = new Date(now);
+          localEnd.setHours(23, 59, 59, 999);
+          localStart = new Date(now);
+          localStart.setDate(localStart.getDate() - 364); // 365 дней назад (включая сегодня)
+          localStart.setHours(0, 0, 0, 0);
           break;
       }
       
-      // Конвертируем в ISO строки - Supabase работает с UTC
-      // Добавляем timestamp для предотвращения кеширования
+      // Конвертируем локальное время в UTC для запроса
+      const startUTC = localToUTC(localStart);
+      const endUTC = localToUTC(localEnd);
+      
+      // Запрос к API
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}&_t=${Date.now()}`,
+        `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${Date.now()}`,
         {
           cache: 'no-store',
           headers: {
@@ -177,10 +187,29 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        setReportData(data.meals || []);
-        setReportTotals(data.totals || null);
+        // Фильтруем данные по локальному времени на клиенте
+        const filteredMeals = (data.meals || []).filter((meal: any) => {
+          const mealDate = new Date(meal.created_at);
+          // Конвертируем UTC из базы в локальное время
+          const mealLocal = new Date(mealDate.getTime() + mealDate.getTimezoneOffset() * 60000);
+          return mealLocal >= localStart && mealLocal <= localEnd;
+        });
+        
+        // Пересчитываем итоги для отфильтрованных данных
+        const filteredTotals = filteredMeals.reduce(
+          (acc: any, meal: any) => ({
+            calories: acc.calories + Number(meal.calories || 0),
+            protein: acc.protein + Number(meal.protein || 0),
+            fat: acc.fat + Number(meal.fat || 0),
+            carbs: acc.carbs + Number(meal.carbs || 0)
+          }),
+          { calories: 0, protein: 0, fat: 0, carbs: 0 }
+        );
+        
+        setReportData(filteredMeals);
+        setReportTotals(filteredTotals);
         setReportPeriod(period);
-        setReportRefreshKey(prev => prev + 1); // Принудительно обновляем отчет
+        setReportRefreshKey(prev => prev + 1);
         setView("report");
       }
     } catch (err) {
@@ -197,6 +226,7 @@ function StatsPageContent() {
     }
 
     setLoading(true);
+    setError(null);
     try {
       // Получаем локальное время начала и конца дня
       const localStart = new Date(reportStartDate);
@@ -204,11 +234,9 @@ function StatsPageContent() {
       const localEnd = new Date(reportEndDate);
       localEnd.setHours(23, 59, 59, 999);
       
-      // Конвертируем в UTC
-      const timezoneOffset = new Date().getTimezoneOffset();
-      const offsetMs = timezoneOffset * 60 * 1000;
-      const start = new Date(localStart.getTime() - offsetMs);
-      const end = new Date(localEnd.getTime() - offsetMs);
+      // Конвертируем локальное время в UTC для запроса
+      const startUTC = localToUTC(localStart);
+      const endUTC = localToUTC(localEnd);
       
       // Получаем дневную норму пользователя
       const userResponse = await fetch(`/api/user?userId=${userId}`);
@@ -217,9 +245,9 @@ function StatsPageContent() {
         setDailyNorm(userData.calories);
       }
 
-      // Добавляем timestamp для предотвращения кеширования
+      // Запрос к API
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${start.toISOString()}&end=${end.toISOString()}&_t=${Date.now()}`,
+        `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${Date.now()}`,
         {
           cache: 'no-store',
           headers: {
@@ -233,10 +261,29 @@ function StatsPageContent() {
       if (data.error) {
         setError(data.error);
       } else {
-        setReportData(data.meals || []);
-        setReportTotals(data.totals || null);
+        // Фильтруем данные по локальному времени на клиенте
+        const filteredMeals = (data.meals || []).filter((meal: any) => {
+          const mealDate = new Date(meal.created_at);
+          // Конвертируем UTC из базы в локальное время
+          const mealLocal = new Date(mealDate.getTime() + mealDate.getTimezoneOffset() * 60000);
+          return mealLocal >= localStart && mealLocal <= localEnd;
+        });
+        
+        // Пересчитываем итоги для отфильтрованных данных
+        const filteredTotals = filteredMeals.reduce(
+          (acc: any, meal: any) => ({
+            calories: acc.calories + Number(meal.calories || 0),
+            protein: acc.protein + Number(meal.protein || 0),
+            fat: acc.fat + Number(meal.fat || 0),
+            carbs: acc.carbs + Number(meal.carbs || 0)
+          }),
+          { calories: 0, protein: 0, fat: 0, carbs: 0 }
+        );
+        
+        setReportData(filteredMeals);
+        setReportTotals(filteredTotals);
         setReportPeriod("custom");
-        setReportRefreshKey(prev => prev + 1); // Принудительно обновляем отчет
+        setReportRefreshKey(prev => prev + 1);
       }
     } catch (err) {
       setError("Ошибка генерации отчета");
@@ -565,53 +612,64 @@ function StatsPageContent() {
 
               <div className="space-y-3">
                 <h3 className="font-semibold text-textPrimary">Приемы пищи:</h3>
-                {reportData.map((meal, index) => {
-                  // Используем refreshKey для принудительного обновления
-                  const mealKey = `${meal.id}-${reportRefreshKey}-${index}`;
-                  const date = new Date(meal.created_at);
-                  const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-                  const dayName = dayNames[date.getDay()];
-                  const formattedDate = date.toLocaleDateString("ru-RU", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric"
-                  });
-                  
-                  // Проверяем, нужно ли показывать дату (если это первая запись или дата отличается от предыдущей)
-                  const prevMeal = index > 0 ? reportData[index - 1] : null;
-                  const prevDate = prevMeal ? new Date(prevMeal.created_at) : null;
-                  const showDate = !prevDate || 
-                    date.toDateString() !== prevDate.toDateString();
-                  
-                  // Используем уникальный ключ для принудительного обновления
-                  const mealKey = `${meal.id}-${Date.now()}-${index}`;
-                  
-                  return (
-                    <div key={mealKey}>
-                      {showDate && (
-                        <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
-                          🗓️ {formattedDate} {dayName}
-                        </div>
-                      )}
-                      <div className="p-4 border border-gray-200 rounded-xl">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="font-medium text-textPrimary">{meal.meal_text}</div>
-                            <div className="text-xs text-textSecondary">
-                              {date.toLocaleTimeString("ru-RU", {
-                                hour: "2-digit",
-                                minute: "2-digit"
-                              })}
+                {reportData.length === 0 ? (
+                  <div className="text-center text-textSecondary py-8">
+                    Нет записей за выбранный период
+                  </div>
+                ) : (
+                  reportData.map((meal, index) => {
+                    // Конвертируем UTC из базы в локальное время для отображения
+                    const mealDateUTC = new Date(meal.created_at);
+                    // Создаем дату в локальном времени
+                    const mealDate = new Date(mealDateUTC.getTime() - mealDateUTC.getTimezoneOffset() * 60000);
+                    
+                    const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+                    const dayName = dayNames[mealDate.getDay()];
+                    const formattedDate = mealDate.toLocaleDateString("ru-RU", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric"
+                    });
+                    
+                    // Проверяем, нужно ли показывать дату (если это первая запись или дата отличается от предыдущей)
+                    const prevMeal = index > 0 ? reportData[index - 1] : null;
+                    let showDate = true;
+                    if (prevMeal) {
+                      const prevDateUTC = new Date(prevMeal.created_at);
+                      const prevDate = new Date(prevDateUTC.getTime() - prevDateUTC.getTimezoneOffset() * 60000);
+                      // Сравниваем только дату (без времени)
+                      showDate = mealDate.toDateString() !== prevDate.toDateString();
+                    }
+                    
+                    const mealKey = `${meal.id}-${reportRefreshKey}-${index}`;
+                    
+                    return (
+                      <div key={mealKey}>
+                        {showDate && (
+                          <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
+                            🗓️ {formattedDate} {dayName}
+                          </div>
+                        )}
+                        <div className="p-4 border border-gray-200 rounded-xl">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <div className="font-medium text-textPrimary">{meal.meal_text}</div>
+                              <div className="text-xs text-textSecondary">
+                                {mealDate.toLocaleTimeString("ru-RU", {
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-sm text-textSecondary">
-                          🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
+                          <div className="text-sm text-textSecondary">
+                            🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           )}

@@ -37,12 +37,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "Пользователь не найден" }, { status: 404 });
   }
 
-  // Получаем приемы пищи за период
-  // Расширяем диапазон на ±12 часов для покрытия всех часовых поясов
+  // start и end приходят в формате ISO строки (уже в UTC)
+  // Просто используем их как есть для запроса к Supabase
   const startDate = new Date(start);
-  startDate.setUTCHours(startDate.getUTCHours() - 12, 0, 0, 0);
   const endDate = new Date(end);
-  endDate.setUTCHours(endDate.getUTCHours() + 12, 59, 59, 999);
+  
+  // Расширяем диапазон на 1 день в обе стороны для надежности
+  startDate.setUTCDate(startDate.getUTCDate() - 1);
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
+  endDate.setUTCHours(23, 59, 59, 999);
   
   const { data: meals, error } = await supabase
     .from("diary")
@@ -70,4 +73,3 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ ok: true, meals: meals || [], totals });
 }
-
