@@ -687,12 +687,14 @@ function EditMealForm({
 
       <div className="flex gap-3">
         <button
+          type="button"
           onClick={handleSave}
           className="flex-1 py-3 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity"
         >
           Сохранить
         </button>
         <button
+          type="button"
           onClick={onCancel}
           className="px-6 py-3 bg-gray-100 text-textPrimary font-medium rounded-xl hover:bg-gray-200 transition-colors"
         >
