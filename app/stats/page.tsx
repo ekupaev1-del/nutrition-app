@@ -61,15 +61,21 @@ function StatsPageContent() {
   }, []);
 
 
-  // Функция для конвертации локального времени в UTC для запроса к API
-  // localDate - это Date объект с локальным временем (например, 2024-01-01 00:00:00 MSK)
-  // Нужно получить UTC эквивалент для этого локального времени
-  const localToUTC = (localDate: Date): Date => {
-    // localDate уже содержит локальное время
-    // getTime() возвращает timestamp в миллисекундах (UTC)
-    // Но нам нужно создать Date объект, который при toISOString() даст правильное UTC время
-    // Просто используем localDate как есть - JavaScript автоматически конвертирует при toISOString()
-    return localDate;
+  // Функция для получения UTC времени из локального
+  // Создает Date объект, который при toISOString() даст правильное UTC время
+  const getUTCFromLocal = (localDate: Date): Date => {
+    // localDate содержит локальное время (например, 2024-01-01 00:00:00 MSK)
+    // Нужно получить UTC эквивалент
+    // Используем Date.UTC для создания UTC даты из локальных компонентов
+    return new Date(Date.UTC(
+      localDate.getFullYear(),
+      localDate.getMonth(),
+      localDate.getDate(),
+      localDate.getHours(),
+      localDate.getMinutes(),
+      localDate.getSeconds(),
+      localDate.getMilliseconds()
+    ));
   };
 
   const generateReportForPeriod = async (period: "today" | "week" | "month" | "year") => {
@@ -126,11 +132,11 @@ function StatsPageContent() {
           break;
       }
       
-      // Конвертируем локальное время в UTC для запроса
-      const startUTC = localToUTC(localStart);
-      const endUTC = localToUTC(localEnd);
+      // Конвертируем локальное время в UTC для запроса к API
+      const startUTC = getUTCFromLocal(localStart);
+      const endUTC = getUTCFromLocal(localEnd);
       
-      // Запрос к API
+      // Запрос к API с timestamp для предотвращения кеширования
       const response = await fetch(
         `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${Date.now()}`,
         {
@@ -147,18 +153,20 @@ function StatsPageContent() {
         setError(data.error);
       } else {
         // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы
+        // meal.created_at приходит в UTC из базы, нужно конвертировать в локальное время
         const filteredMeals = (data.meals || []).filter((meal: any) => {
-          const mealDateUTC = new Date(meal.created_at);
-          // Получаем локальное время из UTC
-          const mealLocalTime = new Date(mealDateUTC);
+          // created_at в UTC из базы
+          const mealUTC = new Date(meal.created_at);
+          // Получаем локальное время (JavaScript автоматически конвертирует при создании Date)
+          // Но нужно правильно сравнить с локальными границами
           
-          // Сравниваем timestamp напрямую с локальными датами
-          const mealTimestamp = mealLocalTime.getTime();
-          const startTimestamp = localStart.getTime();
-          const endTimestamp = localEnd.getTime();
+          // Сравниваем только дату (без времени) для правильной фильтрации
+          const mealLocal = new Date(mealUTC);
+          const mealDateOnly = new Date(mealLocal.getFullYear(), mealLocal.getMonth(), mealLocal.getDate());
+          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
+          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
           
-          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
+          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
         });
         
         // Пересчитываем итоги для отфильтрованных данных
@@ -201,9 +209,9 @@ function StatsPageContent() {
       const localEnd = new Date(reportEndDate);
       localEnd.setHours(23, 59, 59, 999);
       
-      // Конвертируем локальное время в UTC для запроса
-      const startUTC = localToUTC(localStart);
-      const endUTC = localToUTC(localEnd);
+      // Конвертируем локальное время в UTC для запроса к API
+      const startUTC = getUTCFromLocal(localStart);
+      const endUTC = getUTCFromLocal(localEnd);
       
       // Получаем дневную норму пользователя
       const userResponse = await fetch(`/api/user?userId=${userId}`);
@@ -212,7 +220,7 @@ function StatsPageContent() {
         setDailyNorm(userData.calories);
       }
 
-      // Запрос к API
+      // Запрос к API с timestamp для предотвращения кеширования
       const response = await fetch(
         `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${Date.now()}`,
         {
@@ -229,18 +237,19 @@ function StatsPageContent() {
         setError(data.error);
       } else {
         // Фильтруем данные по локальному времени на клиенте
-        // meal.created_at приходит в UTC из базы
+        // meal.created_at приходит в UTC из базы, нужно конвертировать в локальное время
         const filteredMeals = (data.meals || []).filter((meal: any) => {
-          const mealDateUTC = new Date(meal.created_at);
-          // Получаем локальное время из UTC
-          const mealLocalTime = new Date(mealDateUTC);
+          // created_at в UTC из базы
+          const mealUTC = new Date(meal.created_at);
+          // Получаем локальное время (JavaScript автоматически конвертирует при создании Date)
           
-          // Сравниваем timestamp напрямую с локальными датами
-          const mealTimestamp = mealLocalTime.getTime();
-          const startTimestamp = localStart.getTime();
-          const endTimestamp = localEnd.getTime();
+          // Сравниваем только дату (без времени) для правильной фильтрации
+          const mealLocal = new Date(mealUTC);
+          const mealDateOnly = new Date(mealLocal.getFullYear(), mealLocal.getMonth(), mealLocal.getDate());
+          const startDateOnly = new Date(localStart.getFullYear(), localStart.getMonth(), localStart.getDate());
+          const endDateOnly = new Date(localEnd.getFullYear(), localEnd.getMonth(), localEnd.getDate());
           
-          return mealTimestamp >= startTimestamp && mealTimestamp <= endTimestamp;
+          return mealDateOnly >= startDateOnly && mealDateOnly <= endDateOnly;
         });
         
         // Пересчитываем итоги для отфильтрованных данных
@@ -321,6 +330,9 @@ function StatsPageContent() {
       // Успешно обновлено
       setEditingMeal(null);
       
+      // Немного задержки для гарантии, что база обновилась
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Перезагружаем отчет с сервера - всегда получаем свежие данные
       if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
         await generateReport();
@@ -356,10 +368,10 @@ function StatsPageContent() {
         }
       };
       
-      // Автоматическое обновление каждые 2 секунды для быстрого появления новых записей
+      // Автоматическое обновление каждую секунду для мгновенного появления новых записей
       const interval = setInterval(() => {
         refreshReport();
-      }, 2000);
+      }, 1000);
       
       window.addEventListener("focus", handleFocus);
       document.addEventListener("visibilitychange", handleVisibilityChange);

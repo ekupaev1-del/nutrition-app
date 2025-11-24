@@ -37,17 +37,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "Пользователь не найден" }, { status: 404 });
   }
 
-  // start и end приходят в формате ISO строки
-  // Конвертируем в Date объекты
+  // start и end приходят в формате ISO строки (локальное время пользователя, конвертированное в UTC)
+  // Просто используем их для запроса - Supabase работает с UTC
   const startDate = new Date(start);
   const endDate = new Date(end);
   
-  // Расширяем диапазон на 3 дня в обе стороны для надежности (чтобы точно захватить все записи независимо от часового пояса)
-  startDate.setUTCDate(startDate.getUTCDate() - 3);
+  // Расширяем диапазон на 1 день в обе стороны для надежности
+  startDate.setUTCDate(startDate.getUTCDate() - 1);
   startDate.setUTCHours(0, 0, 0, 0);
-  endDate.setUTCDate(endDate.getUTCDate() + 3);
+  endDate.setUTCDate(endDate.getUTCDate() + 1);
   endDate.setUTCHours(23, 59, 59, 999);
   
+  // Получаем ВСЕ записи за расширенный период - фильтрация будет на клиенте
   const { data: meals, error } = await supabase
     .from("diary")
     .select("*")
@@ -61,7 +62,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  // Возвращаем ВСЕ данные - фильтрация будет на клиенте
-  // Это гарантирует, что мы не потеряем записи из-за проблем с часовыми поясами
-  return NextResponse.json({ ok: true, meals: meals || [], totals: null }); // totals будет считаться на клиенте после фильтрации
+  // Возвращаем все данные - фильтрация по локальному времени будет на клиенте
+  return NextResponse.json({ ok: true, meals: meals || [] });
 }
