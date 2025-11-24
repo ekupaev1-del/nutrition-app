@@ -81,11 +81,10 @@ export async function DELETE(
     }
 
     // Удаляем запись
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from("diary")
       .delete()
-      .eq("id", mealId)
-      .select();
+      .eq("id", mealId);
 
     if (error) {
       console.error("[/api/meals/:id DELETE] Ошибка удаления:", error);
