@@ -1342,10 +1342,13 @@ bot.on("photo", async (ctx) => {
         ctx.chat!.id,
         processingMsg.message_id,
         undefined,
-        analysis.message
+        (analysis as NotFoodResponse).message
       );
       return;
     }
+
+    // Type guard: после проверки analysis гарантированно MealAnalysis
+    const mealAnalysis = analysis as MealAnalysis;
 
     // Убеждаемся, что пользователь существует
     const { data: existingUser } = await supabase
@@ -1512,10 +1515,13 @@ bot.on("voice", async (ctx) => {
         ctx.chat!.id,
         processingMsg.message_id,
         undefined,
-        analysis.message
+        (analysis as NotFoodResponse).message
       );
       return;
     }
+
+    // Type guard: после проверки analysis гарантированно MealAnalysis
+    const mealAnalysis = analysis as MealAnalysis;
 
     // Убеждаемся, что пользователь существует
     const { data: existingUser } = await supabase
