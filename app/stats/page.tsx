@@ -289,7 +289,7 @@ function StatsPageContent() {
       // Обновляем отчет - перезагружаем данные
       if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
         await generateReport();
-      } else if (reportPeriod) {
+      } else if (reportPeriod && reportPeriod !== "custom") {
         await generateReportForPeriod(reportPeriod);
       }
     } catch (err: any) {
@@ -322,7 +322,7 @@ function StatsPageContent() {
       // Обновляем отчет - перезагружаем данные
       if (reportPeriod === "custom" && reportStartDate && reportEndDate) {
         await generateReport();
-      } else if (reportPeriod) {
+      } else if (reportPeriod && reportPeriod !== "custom") {
         await generateReportForPeriod(reportPeriod);
       }
     } catch (err: any) {
