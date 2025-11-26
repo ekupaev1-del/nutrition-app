@@ -229,7 +229,10 @@ function ReportsPageContent() {
       setEditingMeal(null);
 
       // ВСЕГДА перезагружаем отчёт с сервера после обновления
+      // Добавляем небольшую задержку, чтобы дать базе данных время на обновление
       if (reportPeriod) {
+        // Используем Promise для правильной работы с async
+        await new Promise(resolve => setTimeout(resolve, 500));
         await loadReport(reportPeriod);
       }
     } catch (err: any) {
@@ -271,7 +274,10 @@ function ReportsPageContent() {
       setEditingMeal(null);
 
       // ВСЕГДА перезагружаем отчёт с сервера после удаления
+      // Добавляем небольшую задержку, чтобы дать базе данных время на обновление
       if (reportPeriod) {
+        // Используем Promise для правильной работы с async
+        await new Promise(resolve => setTimeout(resolve, 500));
         await loadReport(reportPeriod);
       }
     } catch (err: any) {
@@ -281,6 +287,51 @@ function ReportsPageContent() {
       setLoading(false);
     }
   }, [userId, reportPeriod, loadReport]);
+
+  /**
+   * Автоматическое обновление отчёта при фокусе окна или изменении видимости
+   * Это гарантирует, что данные всегда актуальны после операций в боте
+   */
+  useEffect(() => {
+    if (view === "report" && reportPeriod && userId && !loading) {
+      const handleFocus = () => {
+        console.log("[reports] Окно получило фокус, обновляем отчёт...");
+        loadReport(reportPeriod);
+      };
+
+      const handleVisibilityChange = () => {
+        if (!document.hidden) {
+          console.log("[reports] Страница стала видимой, обновляем отчёт...");
+          loadReport(reportPeriod);
+        }
+      };
+
+      // Обновляем при фокусе окна
+      window.addEventListener("focus", handleFocus);
+      // Обновляем при изменении видимости страницы
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      return () => {
+        window.removeEventListener("focus", handleFocus);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
+    }
+  }, [view, reportPeriod, userId, loadReport, loading]);
+
+  /**
+   * Периодическое обновление отчёта каждые 10 секунд, если отчёт открыт
+   * Это гарантирует, что новые данные из бота появятся в отчёте
+   */
+  useEffect(() => {
+    if (view === "report" && reportPeriod && userId && !loading) {
+      const interval = setInterval(() => {
+        console.log("[reports] Периодическое обновление отчёта...");
+        loadReport(reportPeriod);
+      }, 10000); // Обновляем каждые 10 секунд
+
+      return () => clearInterval(interval);
+    }
+  }, [view, reportPeriod, userId, loadReport, loading]);
 
   if (error && !userId) {
     return (
