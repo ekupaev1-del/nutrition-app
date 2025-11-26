@@ -259,20 +259,38 @@ function ReportPageContent() {
         return;
       }
 
-      console.log("[updateMeal] Приём пищи обновлён в БД, перезагружаем отчёт...");
+      console.log("[updateMeal] ✅ Приём пищи обновлён в БД");
 
       // Закрываем форму
       setEditingMeal(null);
 
-      // ВСЕГДА перезагружаем отчёт с сервера
-      // Используем текущий период или "today" по умолчанию
-      const periodToReload = reportPeriod || "today";
+      // КРИТИЧНО: ВСЕГДА перезагружаем отчёт с сервера
+      // Используем текущий период, если он есть, иначе используем последний сохранённый
+      let periodToReload: ReportPeriod;
+      
+      if (reportPeriod) {
+        periodToReload = reportPeriod;
+      } else if (reportData) {
+        // Если reportPeriod не установлен, но есть данные, пробуем определить период
+        // По умолчанию используем "today"
+        periodToReload = "today";
+      } else {
+        console.warn("[updateMeal] Не удалось определить период, используем 'today'");
+        periodToReload = "today";
+      }
       
       console.log("[updateMeal] Перезагружаем отчёт для периода:", periodToReload);
-      // Даём БД время на обновление
-      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Даём БД время на обновление (увеличено до 1000ms для гарантии)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Очищаем старые данные перед загрузкой
+      setReportData(null);
+      
+      // Загружаем свежие данные с сервера
       await loadReport(periodToReload);
-      console.log("[updateMeal] Отчёт перезагружен, данные должны быть актуальны");
+      
+      console.log("[updateMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
       setError(err.message || "Ошибка обновления");
     } finally {
