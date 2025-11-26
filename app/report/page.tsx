@@ -150,24 +150,39 @@ function ReportPageContent() {
     try {
       const { start, end } = getPeriodBounds(period);
 
-      // ВСЕГДА без кэша
+      // ВСЕГДА без кэша, ВСЕГДА свежий запрос к БД
       const timestamp = Date.now();
-      const response = await fetch(
-        `/api/report?userId=${userId}&start=${start}&end=${end}&_t=${timestamp}`,
-        {
-          method: 'GET',
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
+      const url = `/api/report?userId=${userId}&start=${start}&end=${end}&_t=${timestamp}`;
+      
+      console.log("[loadReport] === НАЧАЛО ЗАГРУЗКИ ОТЧЁТА ===", { period, start, end, userId });
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
-      );
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[loadReport] HTTP ошибка:", response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
+      
+      console.log("[loadReport] Ответ от API получен:", {
+        ok: data.ok,
+        hasReport: !!data.report,
+        mealsCount: data.report?.mealsCount,
+        error: data.error
+      });
 
       if (!data.ok) {
+        console.error("[loadReport] Ошибка в ответе API:", data.error);
         setError(data.error || "Ошибка загрузки отчёта");
         setReportData(null);
         return;
@@ -198,13 +213,14 @@ function ReportPageContent() {
       setView("report");
       setVisibleDays(7);
       
-      console.log("[loadReport] Отчёт загружен и установлен в state:", {
+      console.log("[loadReport] === ОТЧЁТ УСПЕШНО ЗАГРУЖЕН ===", {
         period,
         start,
         end,
         mealsCount: newReportData.mealsCount,
         daysCount: newReportData.mealsByDay.length,
-        totals: newReportData.totals
+        totals: newReportData.totals,
+        firstDayMeals: newReportData.mealsByDay[0]?.meals?.length || 0
       });
     } catch (err: any) {
       setError(err.message || "Ошибка загрузки отчёта");
@@ -276,6 +292,8 @@ function ReportPageContent() {
     setError(null);
 
     try {
+      console.log("[deleteMeal] === НАЧАЛО УДАЛЕНИЯ ===", { mealId });
+      
       // Вызываем API удаления
       const response = await fetch('/api/meal/delete', {
         method: 'POST',
@@ -284,14 +302,23 @@ function ReportPageContent() {
         cache: 'no-store'
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[deleteMeal] HTTP ошибка:", response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
+      
+      console.log("[deleteMeal] Ответ от API:", { ok: data.ok, error: data.error });
 
       if (!data.ok) {
+        console.error("[deleteMeal] Ошибка в ответе API:", data.error);
         setError(data.error || "Ошибка удаления");
         return;
       }
 
-      console.log("[deleteMeal] Приём пищи удалён из БД, перезагружаем отчёт...");
+      console.log("[deleteMeal] ✅ Приём пищи удалён из БД, перезагружаем отчёт...");
 
       // Закрываем форму
       setEditingMeal(null);
