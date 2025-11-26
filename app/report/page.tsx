@@ -710,11 +710,17 @@ function ReportPageContent() {
               return (
                 <button
                   key={day}
-                  onClick={() => {
+                  onClick={async () => {
+                    // КРИТИЧНО: Полностью очищаем состояние перед загрузкой
+                    setDayReport(null);
+                    setError(null);
+                    setEditingMeal(null);
+                    
                     // Обновляем календарь перед открытием отчёта
-                    loadCalendar();
+                    await loadCalendar();
+                    
                     // Принудительно обновляем отчёт
-                    loadDayReport(dateKey, true);
+                    await loadDayReport(dateKey, true);
                   }}
                   className={`
                     aspect-square rounded-lg font-medium text-sm transition-colors
