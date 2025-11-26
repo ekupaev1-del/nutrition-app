@@ -302,9 +302,13 @@ function ReportPageContent() {
       // Принудительно обновляем через изменение key
       setRefreshKey(prev => prev + 1);
       
-      // Загружаем свежие данные
+      // Загружаем свежие данные - ДВАЖДЫ для гарантии
       await loadDayReport(dateToReload);
       await loadCalendar(); // Обновляем календарь тоже
+      
+      // Ещё раз через небольшую задержку для гарантии
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadDayReport(dateToReload);
       
       console.log("[updateMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
@@ -373,9 +377,13 @@ function ReportPageContent() {
       // Принудительно обновляем через изменение key
       setRefreshKey(prev => prev + 1);
       
-      // Загружаем свежие данные
+      // Загружаем свежие данные - ДВАЖДЫ для гарантии
       await loadDayReport(dateToReload);
       await loadCalendar(); // Обновляем календарь тоже
+      
+      // Ещё раз через небольшую задержку для гарантии
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadDayReport(dateToReload);
       
       console.log("[deleteMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
