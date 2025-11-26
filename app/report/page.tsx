@@ -274,13 +274,45 @@ function ReportPageContent() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[updateMeal] HTTP ошибка:", response.status, errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
+        }
+        
+        console.error("[updateMeal] HTTP ошибка:", response.status, errorData);
+        
+        // Если запись не найдена (404), просто обновляем отчёт
+        if (response.status === 404 || errorData.error?.includes("не найден")) {
+          console.log("[updateMeal] Запись не найдена, обновляем отчёт");
+          setEditingMeal(null);
+          setDayReport(null);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await loadDayReport(dateToReload);
+          await loadCalendar();
+          setLoading(false);
+          return;
+        }
+        
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
 
       if (!data.ok) {
+        // Если запись не найдена, просто обновляем отчёт
+        if (data.error?.includes("не найден")) {
+          console.log("[updateMeal] Запись не найдена, обновляем отчёт");
+          setEditingMeal(null);
+          setDayReport(null);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await loadDayReport(dateToReload);
+          await loadCalendar();
+          setLoading(false);
+          return;
+        }
+        
         console.error("[updateMeal] Ошибка в ответе API:", data.error);
         setError(data.error || "Ошибка обновления");
         return;
@@ -349,13 +381,45 @@ function ReportPageContent() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[deleteMeal] HTTP ошибка:", response.status, errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
+        }
+        
+        console.error("[deleteMeal] HTTP ошибка:", response.status, errorData);
+        
+        // Если запись уже удалена (404), просто обновляем отчёт
+        if (response.status === 404 || errorData.error?.includes("не найден")) {
+          console.log("[deleteMeal] Запись уже удалена, просто обновляем отчёт");
+          setEditingMeal(null);
+          setDayReport(null);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await loadDayReport(dateToReload);
+          await loadCalendar();
+          setLoading(false);
+          return;
+        }
+        
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
 
       if (!data.ok) {
+        // Если запись уже удалена, просто обновляем отчёт
+        if (data.error?.includes("не найден")) {
+          console.log("[deleteMeal] Запись уже удалена, просто обновляем отчёт");
+          setEditingMeal(null);
+          setDayReport(null);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await loadDayReport(dateToReload);
+          await loadCalendar();
+          setLoading(false);
+          return;
+        }
+        
         console.error("[deleteMeal] Ошибка в ответе API:", data.error);
         setError(data.error || "Ошибка удаления");
         return;
