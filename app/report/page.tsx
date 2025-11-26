@@ -54,6 +54,7 @@ function ReportPageContent() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayReport, setDayReport] = useState<DayReport | null>(null);
   const [loadingDayReport, setLoadingDayReport] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Ключ для принудительного re-render
 
   // Редактирование
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
@@ -194,12 +195,20 @@ function ReportPageContent() {
    * Обновляет приём пищи
    */
   const updateMeal = async (mealId: number, updates: Partial<Meal>) => {
-    if (!userId || !selectedDate) return;
+    if (!userId || !selectedDate) {
+      console.error("[updateMeal] Нет userId или selectedDate:", { userId, selectedDate });
+      return;
+    }
+
+    // КРИТИЧНО: Сохраняем selectedDate в локальную переменную
+    const dateToReload = selectedDate;
 
     setLoading(true);
     setError(null);
 
     try {
+      console.log("[updateMeal] Начинаем обновление:", { mealId, updates, dateToReload });
+
       const response = await fetch('/api/meal/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -210,9 +219,16 @@ function ReportPageContent() {
         cache: 'no-store'
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[updateMeal] HTTP ошибка:", response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (!data.ok) {
+        console.error("[updateMeal] Ошибка в ответе API:", data.error);
         setError(data.error || "Ошибка обновления");
         return;
       }
@@ -222,19 +238,26 @@ function ReportPageContent() {
       // Закрываем форму
       setEditingMeal(null);
 
-      // КРИТИЧНО: Очищаем старые данные перед перезагрузкой
+      // КРИТИЧНО: Полностью очищаем состояние
       setDayReport(null);
+      setLoadingDayReport(true);
 
       // ВСЕГДА перезагружаем отчёт с сервера
       // Увеличена задержка для гарантии обновления БД
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      console.log("[updateMeal] Перезагружаем отчёт...");
-      await loadDayReport(selectedDate);
+      console.log("[updateMeal] Перезагружаем отчёт для даты:", dateToReload);
+      
+      // Принудительно обновляем через изменение key
+      setRefreshKey(prev => prev + 1);
+      
+      // Загружаем свежие данные
+      await loadDayReport(dateToReload);
       await loadCalendar(); // Обновляем календарь тоже
       
       console.log("[updateMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
+      console.error("[updateMeal] Исключение:", err);
       setError(err.message || "Ошибка обновления");
     } finally {
       setLoading(false);
@@ -246,12 +269,20 @@ function ReportPageContent() {
    */
   const deleteMeal = async (mealId: number) => {
     if (!confirm("Удалить этот приём пищи?")) return;
-    if (!userId || !selectedDate) return;
+    if (!userId || !selectedDate) {
+      console.error("[deleteMeal] Нет userId или selectedDate:", { userId, selectedDate });
+      return;
+    }
+
+    // КРИТИЧНО: Сохраняем selectedDate в локальную переменную
+    const dateToReload = selectedDate;
 
     setLoading(true);
     setError(null);
 
     try {
+      console.log("[deleteMeal] Начинаем удаление:", { mealId, dateToReload });
+
       const response = await fetch('/api/meal/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,9 +290,16 @@ function ReportPageContent() {
         cache: 'no-store'
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[deleteMeal] HTTP ошибка:", response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (!data.ok) {
+        console.error("[deleteMeal] Ошибка в ответе API:", data.error);
         setError(data.error || "Ошибка удаления");
         return;
       }
@@ -271,19 +309,26 @@ function ReportPageContent() {
       // Закрываем форму
       setEditingMeal(null);
 
-      // КРИТИЧНО: Очищаем старые данные перед перезагрузкой
+      // КРИТИЧНО: Полностью очищаем состояние
       setDayReport(null);
+      setLoadingDayReport(true);
 
       // ВСЕГДА перезагружаем отчёт с сервера
       // Увеличена задержка для гарантии обновления БД
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      console.log("[deleteMeal] Перезагружаем отчёт...");
-      await loadDayReport(selectedDate);
+      console.log("[deleteMeal] Перезагружаем отчёт для даты:", dateToReload);
+      
+      // Принудительно обновляем через изменение key
+      setRefreshKey(prev => prev + 1);
+      
+      // Загружаем свежие данные
+      await loadDayReport(dateToReload);
       await loadCalendar(); // Обновляем календарь тоже
       
       console.log("[deleteMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
+      console.error("[deleteMeal] Исключение:", err);
       setError(err.message || "Ошибка удаления");
     } finally {
       setLoading(false);
@@ -354,7 +399,7 @@ function ReportPageContent() {
   // Модальное окно с отчётом за день
   if (selectedDate && (dayReport || loadingDayReport)) {
     return (
-      <div className="min-h-screen bg-background p-4 py-8">
+      <div key={`report-${selectedDate}-${refreshKey}`} className="min-h-screen bg-background p-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-textPrimary">
