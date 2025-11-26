@@ -173,11 +173,24 @@ function ReportPageContent() {
         return;
       }
 
-      // Просто сохраняем готовый отчёт с сервера
-      setReportData(data.report);
+      // ВСЕГДА создаём новый объект для принудительного re-render
+      // React обновит UI только если ссылка на объект изменилась
+      setReportData({
+        ...data.report,
+        mealsByDay: [...data.report.mealsByDay],
+        totals: { ...data.report.totals }
+      });
       setReportPeriod(period);
       setView("report");
       setVisibleDays(7);
+      
+      console.log("[loadReport] Отчёт загружен:", {
+        period,
+        start,
+        end,
+        mealsCount: data.report.mealsCount,
+        daysCount: data.report.mealsByDay.length
+      });
     } catch (err: any) {
       setError(err.message || "Ошибка загрузки отчёта");
       setReportData(null);
@@ -215,13 +228,23 @@ function ReportPageContent() {
         return;
       }
 
+      console.log("[updateMeal] Приём пищи обновлён в БД, перезагружаем отчёт...");
+
       // Закрываем форму
       setEditingMeal(null);
 
-      // Перезагружаем отчёт с сервера
-      if (reportPeriod) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await loadReport(reportPeriod);
+      // ВСЕГДА перезагружаем отчёт с сервера
+      // Если reportPeriod не установлен, используем последний сохранённый
+      const periodToReload = reportPeriod || (reportData ? "today" : null);
+      
+      if (periodToReload) {
+        console.log("[updateMeal] Перезагружаем отчёт для периода:", periodToReload);
+        // Даём БД время на обновление
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await loadReport(periodToReload);
+        console.log("[updateMeal] Отчёт перезагружен");
+      } else {
+        console.warn("[updateMeal] Не удалось определить период для перезагрузки");
       }
     } catch (err: any) {
       setError(err.message || "Ошибка обновления");
@@ -257,13 +280,23 @@ function ReportPageContent() {
         return;
       }
 
+      console.log("[deleteMeal] Приём пищи удалён из БД, перезагружаем отчёт...");
+
       // Закрываем форму
       setEditingMeal(null);
 
-      // Перезагружаем отчёт с сервера
-      if (reportPeriod) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await loadReport(reportPeriod);
+      // ВСЕГДА перезагружаем отчёт с сервера
+      // Если reportPeriod не установлен, используем последний сохранённый
+      const periodToReload = reportPeriod || (reportData ? "today" : null);
+      
+      if (periodToReload) {
+        console.log("[deleteMeal] Перезагружаем отчёт для периода:", periodToReload);
+        // Даём БД время на обновление
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await loadReport(periodToReload);
+        console.log("[deleteMeal] Отчёт перезагружен");
+      } else {
+        console.warn("[deleteMeal] Не удалось определить период для перезагрузки");
       }
     } catch (err: any) {
       setError(err.message || "Ошибка удаления");
@@ -298,7 +331,10 @@ function ReportPageContent() {
 
           <div className="space-y-3">
             <button
-              onClick={() => loadReport("today")}
+              onClick={() => {
+                setReportData(null); // Очищаем старые данные
+                loadReport("today");
+              }}
               disabled={loading}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
@@ -306,7 +342,10 @@ function ReportPageContent() {
             </button>
 
             <button
-              onClick={() => loadReport("week")}
+              onClick={() => {
+                setReportData(null); // Очищаем старые данные
+                loadReport("week");
+              }}
               disabled={loading}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
@@ -314,7 +353,10 @@ function ReportPageContent() {
             </button>
 
             <button
-              onClick={() => loadReport("month")}
+              onClick={() => {
+                setReportData(null); // Очищаем старые данные
+                loadReport("month");
+              }}
               disabled={loading}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >

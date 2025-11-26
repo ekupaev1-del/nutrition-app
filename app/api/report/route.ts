@@ -98,6 +98,7 @@ export async function GET(req: Request) {
     const endUTC = endLocal.toISOString();
 
     // Получаем все записи за период из БД
+    // ВСЕГДА делаем свежий запрос, без кэша
     const { data: meals, error: mealsError } = await supabase
       .from("diary")
       .select("*")
@@ -106,7 +107,12 @@ export async function GET(req: Request) {
       .lte("created_at", endUTC)
       .order("created_at", { ascending: false }); // Новые сначала
     
-    console.log("[/api/report] Получено записей из БД:", meals?.length || 0);
+    console.log("[/api/report] Запрос к БД:", {
+      userId: user.telegram_id,
+      startUTC,
+      endUTC,
+      mealsCount: meals?.length || 0
+    });
 
     if (mealsError) {
       console.error("[/api/report] Ошибка получения записей:", mealsError);
