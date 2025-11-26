@@ -176,10 +176,19 @@ function ReportPageContent() {
       }
 
       // Получаем готовый отчёт с бэкенда (без вычислений на фронте)
-      setReportData(data.report);
+      console.log("[loadReport] Получены данные от API:", {
+        mealsCount: data.report?.mealsCount,
+        totals: data.report?.totals,
+        daysCount: data.report?.mealsByDay?.length
+      });
+      
+      // ВСЕГДА создаём новый объект для принудительного re-render
+      setReportData({ ...data.report });
       setReportPeriod(period);
       setView("report");
       setVisibleDays(7); // Сбрасываем пагинацию
+      
+      console.log("[loadReport] State обновлён, reportData установлен");
     } catch (err: any) {
       console.error("[loadReport] Ошибка:", err);
       setError(err.message || "Ошибка загрузки отчёта");
@@ -215,15 +224,26 @@ function ReportPageContent() {
         return;
       }
 
-      console.log("[updateMeal] Приём пищи обновлён, перезагружаем отчёт...");
+      console.log("[updateMeal] Приём пищи обновлён, перезагружаем отчёт...", {
+        mealId,
+        updates,
+        currentReportPeriod: reportPeriod
+      });
       
       // Закрываем форму редактирования
       setEditingMeal(null);
 
       // ВСЕГДА перезагружаем отчёт с сервера (не обновляем локальный state)
-      if (reportPeriod) {
+      // КРИТИЧНО: если reportPeriod не установлен, используем последний сохранённый период
+      const periodToReload = reportPeriod || (reportData ? "today" : null);
+      
+      if (periodToReload) {
+        console.log("[updateMeal] Перезагружаем отчёт для периода:", periodToReload);
         await new Promise(resolve => setTimeout(resolve, 500)); // Даём БД время на обновление
-        await loadReport(reportPeriod);
+        await loadReport(periodToReload);
+        console.log("[updateMeal] Отчёт перезагружен");
+      } else {
+        console.warn("[updateMeal] Не удалось определить период для перезагрузки");
       }
     } catch (err: any) {
       console.error("[updateMeal] Ошибка:", err);
@@ -231,7 +251,7 @@ function ReportPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [userId, reportPeriod, loadReport]);
+  }, [userId, reportPeriod, loadReport, reportData]);
 
   /**
    * Удаляет приём пищи
@@ -258,15 +278,25 @@ function ReportPageContent() {
         return;
       }
 
-      console.log("[deleteMeal] Приём пищи удалён, перезагружаем отчёт...");
+      console.log("[deleteMeal] Приём пищи удалён, перезагружаем отчёт...", {
+        mealId,
+        currentReportPeriod: reportPeriod
+      });
       
       // Закрываем форму редактирования
       setEditingMeal(null);
 
       // ВСЕГДА перезагружаем отчёт с сервера (не обновляем локальный state)
-      if (reportPeriod) {
+      // КРИТИЧНО: если reportPeriod не установлен, используем последний сохранённый период
+      const periodToReload = reportPeriod || (reportData ? "today" : null);
+      
+      if (periodToReload) {
+        console.log("[deleteMeal] Перезагружаем отчёт для периода:", periodToReload);
         await new Promise(resolve => setTimeout(resolve, 500)); // Даём БД время на обновление
-        await loadReport(reportPeriod);
+        await loadReport(periodToReload);
+        console.log("[deleteMeal] Отчёт перезагружен");
+      } else {
+        console.warn("[deleteMeal] Не удалось определить период для перезагрузки");
       }
     } catch (err: any) {
       console.error("[deleteMeal] Ошибка:", err);
@@ -274,7 +304,7 @@ function ReportPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [userId, reportPeriod, loadReport]);
+  }, [userId, reportPeriod, loadReport, reportData]);
 
   /**
    * Автоматическое обновление отчёта при фокусе окна

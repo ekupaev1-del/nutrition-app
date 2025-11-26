@@ -88,21 +88,33 @@ export async function GET(req: Request) {
       );
     }
 
-    // Конвертируем локальные даты в UTC для запроса к БД
-    const startUTC = new Date(startDate);
-    startUTC.setUTCHours(0, 0, 0, 0);
+    // КРИТИЧНО: Правильная конвертация локальных дат в UTC
+    // Не используем setUTCHours, так как это сломает фильтрацию для разных таймзон
+    // Вместо этого создаём даты в локальном времени и конвертируем через toISOString()
+    const startLocal = new Date(periodStart + "T00:00:00");
+    const endLocal = new Date(periodEnd + "T23:59:59.999");
     
-    const endUTC = new Date(endDate);
-    endUTC.setUTCHours(23, 59, 59, 999);
+    // toISOString() автоматически конвертирует в UTC
+    const startUTC = startLocal.toISOString();
+    const endUTC = endLocal.toISOString();
+    
+    console.log("[/api/report] Фильтрация по датам:", {
+      periodStart,
+      periodEnd,
+      startUTC,
+      endUTC
+    });
 
     // Получаем все записи за период из БД
     const { data: meals, error: mealsError } = await supabase
       .from("diary")
       .select("*")
       .eq("user_id", user.telegram_id)
-      .gte("created_at", startUTC.toISOString())
-      .lte("created_at", endUTC.toISOString())
+      .gte("created_at", startUTC)
+      .lte("created_at", endUTC)
       .order("created_at", { ascending: false }); // Новые сначала
+    
+    console.log("[/api/report] Получено записей из БД:", meals?.length || 0);
 
     if (mealsError) {
       console.error("[/api/report] Ошибка получения записей:", mealsError);
