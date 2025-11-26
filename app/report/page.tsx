@@ -422,7 +422,7 @@ function ReportPageContent() {
                       dayReport.meals.map((meal) => {
                         const mealDate = new Date(meal.created_at);
                         return (
-                          <div key={`meal-${meal.id}-${meal.updated_at || meal.created_at}`} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
+                          <div key={meal.id} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex-1">
                                 <div className="font-medium text-textPrimary">{meal.meal_text}</div>
