@@ -82,6 +82,13 @@ export async function GET(req: Request) {
     const endUTC = dayEnd.toISOString();
 
     // Получаем все записи за день из БД
+    console.log("[/api/report/day] Запрос к БД:", {
+      userId: user.telegram_id,
+      date,
+      startUTC,
+      endUTC
+    });
+
     const { data: meals, error: mealsError } = await supabase
       .from("diary")
       .select("*")
@@ -97,6 +104,10 @@ export async function GET(req: Request) {
         { status: 500 }
       );
     }
+
+    console.log("[/api/report/day] Получено записей из БД:", meals?.length || 0, {
+      meals: meals?.map(m => ({ id: m.id, text: m.meal_text, created_at: m.created_at }))
+    });
 
     // Вычисляем итоговые значения за день
     const totals = (meals || []).reduce(
@@ -114,16 +125,24 @@ export async function GET(req: Request) {
     const percentage = dailyNorm > 0 ? (totals.calories / dailyNorm) * 100 : 0;
 
     // Возвращаем готовый отчёт за день
+    const report = {
+      date,
+      totals,
+      dailyNorm,
+      percentage: Math.round(percentage * 10) / 10,
+      meals: meals || [],
+      mealsCount: meals?.length || 0
+    };
+
+    console.log("[/api/report/day] Возвращаем отчёт:", {
+      date: report.date,
+      mealsCount: report.mealsCount,
+      totals: report.totals
+    });
+
     return NextResponse.json({
       ok: true,
-      report: {
-        date,
-        totals,
-        dailyNorm,
-        percentage: Math.round(percentage * 10) / 10,
-        meals: meals || [],
-        mealsCount: meals?.length || 0
-      }
+      report
     });
   } catch (error: any) {
     console.error("[/api/report/day] Неожиданная ошибка:", error);

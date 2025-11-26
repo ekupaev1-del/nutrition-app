@@ -82,6 +82,13 @@ export async function GET(req: Request) {
     const endUTC = monthEnd.toISOString();
 
     // Получаем все записи за месяц из БД
+    console.log("[/api/report/calendar] Запрос к БД:", {
+      userId: user.telegram_id,
+      month,
+      startUTC,
+      endUTC
+    });
+
     const { data: meals, error: mealsError } = await supabase
       .from("diary")
       .select("created_at")
@@ -97,6 +104,8 @@ export async function GET(req: Request) {
       );
     }
 
+    console.log("[/api/report/calendar] Получено записей из БД:", meals?.length || 0);
+
     // Извлекаем уникальные даты (в локальном времени)
     const datesSet = new Set<string>();
     
@@ -107,6 +116,8 @@ export async function GET(req: Request) {
     });
 
     const dates = Array.from(datesSet).sort();
+    
+    console.log("[/api/report/calendar] Возвращаем даты:", { datesCount: dates.length, dates });
 
     // Возвращаем массив дат
     return NextResponse.json({
