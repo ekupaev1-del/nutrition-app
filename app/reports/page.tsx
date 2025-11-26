@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense, useCallback } from "react";
 import "../globals.css";
 
-export const dynamic = 'force-dynamic';
+// export const dynamic = 'force-dynamic'; // Убрано, так как это клиентский компонент
 
 interface Meal {
   id: number;
