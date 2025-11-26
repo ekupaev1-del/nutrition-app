@@ -81,8 +81,47 @@ function ReportPageContent() {
     }
   }, [userId, currentMonth]);
 
+  // АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ: при открытии окна и при фокусе
+  useEffect(() => {
+    if (!userId) return;
+
+    // Обновляем при открытии
+    const handleFocus = () => {
+      console.log("[auto-update] Окно получило фокус, обновляем календарь...");
+      loadCalendar();
+      if (selectedDate) {
+        console.log("[auto-update] Обновляем отчёт за день:", selectedDate);
+        loadDayReport(selectedDate);
+      }
+    };
+
+    // Обновляем при изменении видимости
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log("[auto-update] Страница стала видимой, обновляем календарь...");
+        loadCalendar();
+        if (selectedDate) {
+          console.log("[auto-update] Обновляем отчёт за день:", selectedDate);
+          loadDayReport(selectedDate);
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Обновляем сразу при монтировании
+    handleFocus();
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [userId, selectedDate]);
+
   /**
    * Загружает календарь (даты с данными)
+   * ВСЕГДА делает свежий запрос к БД
    */
   const loadCalendar = async () => {
     if (!userId) return;
@@ -90,8 +129,12 @@ function ReportPageContent() {
     setLoadingCalendar(true);
     try {
       const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+      const timestamp = Date.now();
+      
+      console.log("[loadCalendar] Загружаем календарь:", { monthStr, userId });
+      
       const response = await fetch(
-        `/api/report/calendar?userId=${userId}&month=${monthStr}`,
+        `/api/report/calendar?userId=${userId}&month=${monthStr}&_t=${timestamp}`,
         {
           method: 'GET',
           cache: 'no-store',
@@ -103,6 +146,10 @@ function ReportPageContent() {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (!data.ok) {
@@ -111,7 +158,11 @@ function ReportPageContent() {
         return;
       }
 
-      setDatesWithData(data.dates || []);
+      // ВСЕГДА создаём новый массив для принудительного re-render
+      const newDates = [...(data.dates || [])];
+      setDatesWithData(newDates);
+      
+      console.log("[loadCalendar] Календарь обновлён:", { datesCount: newDates.length, dates: newDates });
     } catch (err: any) {
       console.error("[loadCalendar] Ошибка:", err);
       setDatesWithData([]);
@@ -414,6 +465,8 @@ function ReportPageContent() {
                 setSelectedDate(null);
                 setDayReport(null);
                 setEditingMeal(null);
+                // Обновляем календарь при возврате
+                loadCalendar();
               }}
               className="text-textSecondary hover:text-textPrimary"
             >
@@ -561,7 +614,11 @@ function ReportPageContent() {
               return (
                 <button
                   key={day}
-                  onClick={() => loadDayReport(dateKey)}
+                  onClick={() => {
+                    // Обновляем календарь перед открытием отчёта
+                    loadCalendar();
+                    loadDayReport(dateKey);
+                  }}
                   className={`
                     aspect-square rounded-lg font-medium text-sm transition-colors
                     ${hasData 
