@@ -217,13 +217,23 @@ function ReportPageContent() {
         return;
       }
 
+      console.log("[updateMeal] ✅ Приём пищи обновлён в БД");
+
       // Закрываем форму
       setEditingMeal(null);
 
+      // КРИТИЧНО: Очищаем старые данные перед перезагрузкой
+      setDayReport(null);
+
       // ВСЕГДА перезагружаем отчёт с сервера
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Увеличена задержка для гарантии обновления БД
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log("[updateMeal] Перезагружаем отчёт...");
       await loadDayReport(selectedDate);
       await loadCalendar(); // Обновляем календарь тоже
+      
+      console.log("[updateMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
       setError(err.message || "Ошибка обновления");
     } finally {
@@ -256,13 +266,23 @@ function ReportPageContent() {
         return;
       }
 
+      console.log("[deleteMeal] ✅ Приём пищи удалён из БД");
+
       // Закрываем форму
       setEditingMeal(null);
 
+      // КРИТИЧНО: Очищаем старые данные перед перезагрузкой
+      setDayReport(null);
+
       // ВСЕГДА перезагружаем отчёт с сервера
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Увеличена задержка для гарантии обновления БД
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log("[deleteMeal] Перезагружаем отчёт...");
       await loadDayReport(selectedDate);
       await loadCalendar(); // Обновляем календарь тоже
+      
+      console.log("[deleteMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
       setError(err.message || "Ошибка удаления");
     } finally {
