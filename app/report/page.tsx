@@ -85,37 +85,51 @@ function ReportPageContent() {
     }
   }, [userId, currentMonth]);
 
-  // АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ: при открытии окна и при фокусе
+  // УМНОЕ АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ: только при реальном переключении на окно
   useEffect(() => {
     if (!userId) return;
 
-    // Обновляем при открытии
+    // Функция для проверки, можно ли обновлять (cooldown)
+    const canUpdate = () => {
+      const now = Date.now();
+      if (now - lastUpdateRef.current < UPDATE_COOLDOWN) {
+        console.log("[auto-update] Слишком рано для обновления, пропускаем");
+        return false;
+      }
+      lastUpdateRef.current = now;
+      return true;
+    };
+
+    // Обновляем при фокусе (только если прошло достаточно времени)
     const handleFocus = () => {
+      if (!canUpdate()) return;
       console.log("[auto-update] Окно получило фокус, обновляем календарь...");
       loadCalendar();
       if (selectedDate) {
         console.log("[auto-update] Обновляем отчёт за день:", selectedDate);
-        loadDayReport(selectedDate, true); // Принудительное обновление
+        loadDayReport(selectedDate, true);
       }
     };
 
-    // Обновляем при изменении видимости
+    // Обновляем при изменении видимости (только если прошло достаточно времени)
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log("[auto-update] Страница стала видимой, обновляем календарь...");
-        loadCalendar();
-        if (selectedDate) {
-          console.log("[auto-update] Обновляем отчёт за день:", selectedDate);
-          loadDayReport(selectedDate, true); // Принудительное обновление
-        }
+      if (document.hidden) return; // Не обновляем при скрытии
+      if (!canUpdate()) return;
+      console.log("[auto-update] Страница стала видимой, обновляем календарь...");
+      loadCalendar();
+      if (selectedDate) {
+        console.log("[auto-update] Обновляем отчёт за день:", selectedDate);
+        loadDayReport(selectedDate, true);
       }
     };
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // Обновляем сразу при монтировании
-    handleFocus();
+    // Обновляем только один раз при монтировании
+    if (lastUpdateRef.current === 0) {
+      handleFocus();
+    }
 
     return () => {
       window.removeEventListener("focus", handleFocus);
