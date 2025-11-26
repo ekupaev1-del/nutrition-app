@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     if (!Number.isFinite(numericId) || numericId <= 0) {
       return NextResponse.json(
         { ok: false, error: "userId должен быть положительным числом" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -69,14 +69,14 @@ export async function GET(req: Request) {
       console.error("[/api/report/day] Ошибка получения пользователя:", userError);
       return NextResponse.json(
         { ok: false, error: "Ошибка базы данных" },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
     if (!user) {
       return NextResponse.json(
         { ok: false, error: "Пользователь не найден" },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -89,7 +89,7 @@ export async function GET(req: Request) {
     if (isNaN(dayStart.getTime()) || isNaN(dayEnd.getTime())) {
       return NextResponse.json(
         { ok: false, error: "Некорректный формат даты" },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -132,7 +132,7 @@ export async function GET(req: Request) {
       console.error("[/api/report/day] Ошибка получения записей:", mealsError);
       return NextResponse.json(
         { ok: false, error: "Ошибка получения данных" },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
