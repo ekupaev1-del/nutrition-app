@@ -326,7 +326,7 @@ bot.on("message", async (ctx, next) => {
 
         if (user) {
           const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
-          const reportsUrl = `https://nutrition-app4.vercel.app/reports?id=${user.id}`;
+          const reportUrl = `https://nutrition-app4.vercel.app/report?id=${user.id}`;
           
           console.log("[bot] 📤 Отправка сообщения с меню для пользователя:", user.id);
           
@@ -738,7 +738,7 @@ bot.on("text", async (ctx) => {
         .maybeSingle();
 
       const updateUrl = user ? `https://nutrition-app4.vercel.app/?id=${user.id}` : "";
-      const reportsUrl = user ? `https://nutrition-app4.vercel.app/reports?id=${user.id}` : "";
+      const reportUrl = user ? `https://nutrition-app4.vercel.app/report?id=${user.id}` : "";
 
       // Возвращаем в главное меню
       const keyboardButtons: any[] = [
@@ -746,7 +746,7 @@ bot.on("text", async (ctx) => {
           { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
         ],
         [
-          { text: "📋 Получить отчет", web_app: user ? { url: reportsUrl } : undefined }
+          { text: "📋 Получить отчет", web_app: user ? { url: reportUrl } : undefined }
         ],
         [
           { text: "💡 Рекомендации" }
@@ -776,14 +776,14 @@ bot.on("text", async (ctx) => {
         .maybeSingle();
 
       const updateUrl = user ? `https://nutrition-app4.vercel.app/?id=${user.id}` : "";
-      const reportsUrl = user ? `https://nutrition-app4.vercel.app/reports?id=${user.id}` : "";
+      const reportUrl = user ? `https://nutrition-app4.vercel.app/report?id=${user.id}` : "";
 
       const keyboardButtons: any[] = [
         [
           { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
         ],
         [
-          { text: "📋 Получить отчет", web_app: user ? { url: reportsUrl } : undefined }
+          { text: "📋 Получить отчет", web_app: user ? { url: reportUrl } : undefined }
         ],
         [
           { text: "💡 Рекомендации" }
