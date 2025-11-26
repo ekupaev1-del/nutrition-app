@@ -168,17 +168,25 @@ export async function GET(req: Request) {
     const percentage = periodNorm > 0 ? (totals.calories / periodNorm) * 100 : 0;
 
     // Возвращаем готовый отчёт
+    const report = {
+      mealsByDay: days,
+      totals,
+      dailyNorm,
+      periodNorm,
+      periodDays,
+      percentage: Math.round(percentage * 10) / 10, // Округляем до 1 знака
+      mealsCount: meals?.length || 0
+    };
+    
+    console.log("[/api/report] Возвращаем отчёт:", {
+      mealsCount: report.mealsCount,
+      daysCount: report.mealsByDay.length,
+      totals: report.totals
+    });
+    
     return NextResponse.json({
       ok: true,
-      report: {
-        mealsByDay: days,
-        totals,
-        dailyNorm,
-        periodNorm,
-        periodDays,
-        percentage: Math.round(percentage * 10) / 10, // Округляем до 1 знака
-        mealsCount: meals?.length || 0
-      }
+      report
     });
   } catch (error: any) {
     console.error("[/api/report] Неожиданная ошибка:", error);

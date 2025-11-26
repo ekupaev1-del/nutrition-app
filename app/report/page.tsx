@@ -173,23 +173,38 @@ function ReportPageContent() {
         return;
       }
 
-      // ВСЕГДА создаём новый объект для принудительного re-render
-      // React обновит UI только если ссылка на объект изменилась
-      setReportData({
-        ...data.report,
-        mealsByDay: [...data.report.mealsByDay],
-        totals: { ...data.report.totals }
-      });
+      // ВСЕГДА создаём полностью новый объект для принудительного re-render
+      // Глубокое копирование всех вложенных объектов
+      const newReportData: ReportData = {
+        mealsByDay: data.report.mealsByDay.map(day => ({
+          date: day.date,
+          meals: day.meals.map(meal => ({ ...meal }))
+        })),
+        totals: {
+          calories: data.report.totals.calories,
+          protein: data.report.totals.protein,
+          fat: data.report.totals.fat,
+          carbs: data.report.totals.carbs
+        },
+        dailyNorm: data.report.dailyNorm,
+        periodNorm: data.report.periodNorm,
+        periodDays: data.report.periodDays,
+        percentage: data.report.percentage,
+        mealsCount: data.report.mealsCount
+      };
+      
+      setReportData(newReportData);
       setReportPeriod(period);
       setView("report");
       setVisibleDays(7);
       
-      console.log("[loadReport] Отчёт загружен:", {
+      console.log("[loadReport] Отчёт загружен и установлен в state:", {
         period,
         start,
         end,
-        mealsCount: data.report.mealsCount,
-        daysCount: data.report.mealsByDay.length
+        mealsCount: newReportData.mealsCount,
+        daysCount: newReportData.mealsByDay.length,
+        totals: newReportData.totals
       });
     } catch (err: any) {
       setError(err.message || "Ошибка загрузки отчёта");
@@ -234,18 +249,14 @@ function ReportPageContent() {
       setEditingMeal(null);
 
       // ВСЕГДА перезагружаем отчёт с сервера
-      // Если reportPeriod не установлен, используем последний сохранённый
-      const periodToReload = reportPeriod || (reportData ? "today" : null);
+      // Используем текущий период или "today" по умолчанию
+      const periodToReload = reportPeriod || "today";
       
-      if (periodToReload) {
-        console.log("[updateMeal] Перезагружаем отчёт для периода:", periodToReload);
-        // Даём БД время на обновление
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await loadReport(periodToReload);
-        console.log("[updateMeal] Отчёт перезагружен");
-      } else {
-        console.warn("[updateMeal] Не удалось определить период для перезагрузки");
-      }
+      console.log("[updateMeal] Перезагружаем отчёт для периода:", periodToReload);
+      // Даём БД время на обновление
+      await new Promise(resolve => setTimeout(resolve, 800));
+      await loadReport(periodToReload);
+      console.log("[updateMeal] Отчёт перезагружен, данные должны быть актуальны");
     } catch (err: any) {
       setError(err.message || "Ошибка обновления");
     } finally {
@@ -286,18 +297,14 @@ function ReportPageContent() {
       setEditingMeal(null);
 
       // ВСЕГДА перезагружаем отчёт с сервера
-      // Если reportPeriod не установлен, используем последний сохранённый
-      const periodToReload = reportPeriod || (reportData ? "today" : null);
+      // Используем текущий период или "today" по умолчанию
+      const periodToReload = reportPeriod || "today";
       
-      if (periodToReload) {
-        console.log("[deleteMeal] Перезагружаем отчёт для периода:", periodToReload);
-        // Даём БД время на обновление
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await loadReport(periodToReload);
-        console.log("[deleteMeal] Отчёт перезагружен");
-      } else {
-        console.warn("[deleteMeal] Не удалось определить период для перезагрузки");
-      }
+      console.log("[deleteMeal] Перезагружаем отчёт для периода:", periodToReload);
+      // Даём БД время на обновление
+      await new Promise(resolve => setTimeout(resolve, 800));
+      await loadReport(periodToReload);
+      console.log("[deleteMeal] Отчёт перезагружен, данные должны быть актуальны");
     } catch (err: any) {
       setError(err.message || "Ошибка удаления");
     } finally {
@@ -396,7 +403,11 @@ function ReportPageContent() {
             <div className="flex items-center gap-2">
               {reportData && reportPeriod && (
                 <button
-                  onClick={() => loadReport(reportPeriod)}
+                  onClick={() => {
+                    console.log("[refresh] Принудительное обновление отчёта");
+                    setReportData(null); // Очищаем перед загрузкой
+                    loadReport(reportPeriod);
+                  }}
                   disabled={loading}
                   className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
                   title="Обновить отчет"
