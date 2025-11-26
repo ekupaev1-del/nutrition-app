@@ -229,11 +229,15 @@ function ReportPageContent() {
         mealsCount: data.report.mealsCount
       };
 
+      // КРИТИЧНО: Принудительно обновляем refreshKey для re-render списка
+      setRefreshKey(prev => prev + 1);
+      
       setDayReport(newReport);
       console.log("[loadDayReport] Отчёт загружен:", {
         date,
         mealsCount: newReport.mealsCount,
-        totals: newReport.totals
+        totals: newReport.totals,
+        meals: newReport.meals.map(m => ({ id: m.id, text: m.meal_text }))
       });
     } catch (err: any) {
       console.error("[loadDayReport] Ошибка:", err);
@@ -613,10 +617,11 @@ function ReportPageContent() {
                         Нет записей за этот день
                       </div>
                     ) : (
-                      dayReport.meals.map((meal) => {
-                        const mealDate = new Date(meal.created_at);
-                        return (
-                          <div key={meal.id} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
+                      <div key={`meals-list-${refreshKey}-${dayReport.mealsCount}`}>
+                        {dayReport.meals.map((meal, index) => {
+                          const mealDate = new Date(meal.created_at);
+                          return (
+                            <div key={`meal-${meal.id}-${index}-${refreshKey}`} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex-1">
                                 <div className="font-medium text-textPrimary">{meal.meal_text}</div>
@@ -646,8 +651,9 @@ function ReportPageContent() {
                               </button>
                             </div>
                           </div>
-                        );
-                      })
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
