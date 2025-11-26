@@ -232,7 +232,7 @@ bot.start(async (ctx) => {
     }
 
     // Если анкета заполнена - показываем обычное меню
-    const reportsUrl = `https://nutrition-app4.vercel.app/reports?id=${userId}`;
+    const reportUrl = `https://nutrition-app4.vercel.app/report?id=${userId}`;
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${userId}`;
     
     await ctx.reply("Добро пожаловать! Выберите действие:", {
@@ -242,7 +242,7 @@ bot.start(async (ctx) => {
             { text: "✏️ Обновить анкету", web_app: { url: updateUrl } }
           ],
           [
-            { text: "📋 Получить отчет", web_app: { url: reportsUrl } }
+            { text: "📋 Получить отчет", web_app: { url: reportUrl } }
           ],
           [
             { text: "💡 Рекомендации" }
@@ -340,7 +340,7 @@ bot.on("message", async (ctx, next) => {
                       { text: "✏️ Обновить анкету", web_app: { url: updateUrl } }
                     ],
                     [
-                      { text: "📋 Получить отчет", web_app: { url: reportsUrl } }
+                      { text: "📋 Получить отчет", web_app: { url: reportUrl } }
                     ],
                     [
                       { text: "💡 Рекомендации" }
