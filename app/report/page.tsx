@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import "../globals.css";
 
 interface Meal {
@@ -55,6 +55,10 @@ function ReportPageContent() {
   const [dayReport, setDayReport] = useState<DayReport | null>(null);
   const [loadingDayReport, setLoadingDayReport] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Ключ для принудительного re-render
+  
+  // Таймер для предотвращения слишком частых обновлений
+  const lastUpdateRef = useRef<number>(0);
+  const UPDATE_COOLDOWN = 10000; // 10 секунд между автоматическими обновлениями
 
   // Редактирование
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
