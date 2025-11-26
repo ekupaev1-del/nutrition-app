@@ -4,14 +4,16 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = 'force-dynamic';
 
 /**
- * API для получения отчётов о питании
+ * GET /api/reports
  * 
  * Параметры:
  * - userId: ID пользователя (из таблицы users)
  * - start: начало периода в ISO формате (UTC)
  * - end: конец периода в ISO формате (UTC)
  * 
- * Возвращает все записи за указанный период, отсортированные по дате (новые сначала)
+ * Возвращает:
+ * - meals: массив приёмов пищи за период
+ * - dailyNorm: дневная норма калорий пользователя
  */
 export async function GET(req: Request) {
   try {
@@ -40,15 +42,15 @@ export async function GET(req: Request) {
       );
     }
 
-    // Получаем telegram_id из users
+    // Получаем пользователя и его дневную норму
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("telegram_id")
+      .select("telegram_id, calories")
       .eq("id", numericId)
       .maybeSingle();
 
     if (userError) {
-      console.error("[/api/report] Ошибка получения пользователя:", userError);
+      console.error("[/api/reports] Ошибка получения пользователя:", userError);
       return NextResponse.json(
         { ok: false, error: "Ошибка базы данных" },
         { status: 500 }
@@ -62,7 +64,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // Парсим даты
+    // Валидация дат
     const startDate = new Date(start);
     const endDate = new Date(end);
 
@@ -73,7 +75,6 @@ export async function GET(req: Request) {
       );
     }
 
-    // Убеждаемся, что start <= end
     if (startDate > endDate) {
       return NextResponse.json(
         { ok: false, error: "Начало периода должно быть раньше конца" },
@@ -81,44 +82,35 @@ export async function GET(req: Request) {
       );
     }
 
-    // Устанавливаем точные границы времени для фильтрации
-    // startDate: начало дня (00:00:00.000)
-    // endDate: конец дня (23:59:59.999)
-    const startUTC = new Date(startDate);
-    startUTC.setUTCHours(0, 0, 0, 0);
-    
-    const endUTC = new Date(endDate);
-    endUTC.setUTCHours(23, 59, 59, 999);
-
     // Получаем все записи за период
-    // Фильтруем по user_id (telegram_id) и created_at
+    // Используем даты как есть (они уже в UTC от клиента)
     const { data: meals, error: mealsError } = await supabase
       .from("diary")
       .select("*")
       .eq("user_id", user.telegram_id)
-      .gte("created_at", startUTC.toISOString())
-      .lte("created_at", endUTC.toISOString())
+      .gte("created_at", start)
+      .lte("created_at", end)
       .order("created_at", { ascending: false }); // Новые сначала
 
     if (mealsError) {
-      console.error("[/api/report] Ошибка получения записей:", mealsError);
+      console.error("[/api/reports] Ошибка получения записей:", mealsError);
       return NextResponse.json(
         { ok: false, error: "Ошибка получения данных" },
         { status: 500 }
       );
     }
 
-    // Возвращаем данные
     return NextResponse.json({
       ok: true,
       meals: meals || [],
-      count: meals?.length || 0
+      dailyNorm: user.calories || null
     });
   } catch (error: any) {
-    console.error("[/api/report] Неожиданная ошибка:", error);
+    console.error("[/api/reports] Неожиданная ошибка:", error);
     return NextResponse.json(
       { ok: false, error: error.message || "Внутренняя ошибка сервера" },
       { status: 500 }
     );
   }
 }
+

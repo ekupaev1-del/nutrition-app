@@ -2,7 +2,6 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import "../globals.css";
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +24,7 @@ interface ReportTotals {
   carbs: number;
 }
 
-type ReportPeriod = "today" | "week" | "month" | "year" | "custom";
+type ReportPeriod = "today" | "week" | "month" | "custom";
 
 function LoadingFallback() {
   return (
@@ -35,20 +34,19 @@ function LoadingFallback() {
   );
 }
 
-function StatsPageContent() {
+function ReportsPageContent() {
   const searchParams = useSearchParams();
   const userIdParam = searchParams.get("id");
-  const initialView = searchParams.get("view") || "menu";
   
   const [userId, setUserId] = useState<number | null>(null);
-  const [view, setView] = useState<"menu" | "report">(initialView as "menu" | "report");
+  const [view, setView] = useState<"period-select" | "report">("period-select");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Данные для отчета
   const [reportStartDate, setReportStartDate] = useState<string>("");
   const [reportEndDate, setReportEndDate] = useState<string>("");
-  const [reportData, setReportData] = useState<Meal[] | null>(null);
+  const [reportData, setReportData] = useState<Meal[]>([]);
   const [reportTotals, setReportTotals] = useState<ReportTotals | null>(null);
   const [dailyNorm, setDailyNorm] = useState<number | null>(null);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod | null>(null);
@@ -82,28 +80,6 @@ function StatsPageContent() {
   }, []);
 
   /**
-   * Получает дневную норму пользователя
-   */
-  const fetchDailyNorm = useCallback(async (userId: number) => {
-    try {
-      const response = await fetch(`/api/user?userId=${userId}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-      const data = await response.json();
-      if (data.ok && data.calories) {
-        setDailyNorm(data.calories);
-      }
-    } catch (err) {
-      console.error("[fetchDailyNorm] Ошибка:", err);
-    }
-  }, []);
-
-  /**
    * Вычисляет границы периода в локальном времени пользователя
    * и конвертирует их в UTC для запроса к API
    */
@@ -133,13 +109,6 @@ function StatsPageContent() {
         localStart.setDate(localStart.getDate() - 29);
         localStart.setHours(0, 0, 0, 0);
         break;
-      case "year":
-        localEnd = new Date(now);
-        localEnd.setHours(23, 59, 59, 999);
-        localStart = new Date(now);
-        localStart.setDate(localStart.getDate() - 364);
-        localStart.setHours(0, 0, 0, 0);
-        break;
       case "custom":
         localStart = new Date(reportStartDate);
         localStart.setHours(0, 0, 0, 0);
@@ -148,8 +117,7 @@ function StatsPageContent() {
         break;
     }
 
-    // Конвертируем локальное время в UTC
-    // JavaScript автоматически конвертирует при использовании toISOString()
+    // JavaScript автоматически конвертирует локальное время в UTC при toISOString()
     return {
       startUTC: localStart,
       endUTC: localEnd
@@ -158,12 +126,9 @@ function StatsPageContent() {
 
   /**
    * Загружает отчёт с сервера
+   * ВСЕГДА делает свежий запрос к базе данных
    */
-  const loadReport = useCallback(async (
-    period: ReportPeriod,
-    startUTC: Date,
-    endUTC: Date
-  ) => {
+  const loadReport = useCallback(async (period: ReportPeriod) => {
     if (!userId) {
       setError("Пользователь не найден");
       return;
@@ -173,19 +138,20 @@ function StatsPageContent() {
     setError(null);
 
     try {
-      // Получаем дневную норму
-      await fetchDailyNorm(userId);
+      const { startUTC, endUTC } = getPeriodBounds(period);
 
-      // Запрос к API с timestamp для предотвращения кеширования
+      // ВСЕГДА добавляем уникальный timestamp для предотвращения кеширования
       const timestamp = Date.now();
       const response = await fetch(
-        `/api/report?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${timestamp}`,
+        `/api/reports?userId=${userId}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&_t=${timestamp}`,
         {
+          method: 'GET',
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
-            'Expires': '0'
+            'Expires': '0',
+            'X-Request-ID': `report-${timestamp}-${Math.random()}`
           }
         }
       );
@@ -193,14 +159,16 @@ function StatsPageContent() {
       const data = await response.json();
 
       if (!data.ok) {
+        console.error("[loadReport] Ошибка от API:", data.error);
         setError(data.error || "Ошибка загрузки отчёта");
-        setReportData(null);
+        setReportData([]);
         setReportTotals(null);
         return;
       }
 
       // Получаем данные из ответа
       const meals: Meal[] = data.meals || [];
+      const dailyNormValue = data.dailyNorm || null;
 
       // Вычисляем итоги
       const totals: ReportTotals = meals.reduce(
@@ -213,44 +181,25 @@ function StatsPageContent() {
         { calories: 0, protein: 0, fat: 0, carbs: 0 }
       );
 
-      // Обновляем состояние
+      // Обновляем состояние - ВСЕГДА создаём новые объекты/массивы для принудительного re-render
       setReportData([...meals]);
-      setReportTotals(totals);
+      setReportTotals({ ...totals });
+      setDailyNorm(dailyNormValue);
       setReportPeriod(period);
       setView("report");
     } catch (err: any) {
       console.error("[loadReport] Ошибка:", err);
       setError(err.message || "Ошибка загрузки отчёта");
-      setReportData(null);
+      setReportData([]);
       setReportTotals(null);
     } finally {
       setLoading(false);
     }
-  }, [userId, fetchDailyNorm]);
-
-  /**
-   * Генерирует отчёт для предустановленного периода
-   */
-  const generateReportForPeriod = useCallback(async (period: "today" | "week" | "month" | "year") => {
-    const { startUTC, endUTC } = getPeriodBounds(period);
-    await loadReport(period, startUTC, endUTC);
-  }, [getPeriodBounds, loadReport]);
-
-  /**
-   * Генерирует отчёт для выбранного периода
-   */
-  const generateReport = useCallback(async () => {
-    if (!reportStartDate || !reportEndDate) {
-      setError("Выберите период");
-      return;
-    }
-
-    const { startUTC, endUTC } = getPeriodBounds("custom");
-    await loadReport("custom", startUTC, endUTC);
-  }, [reportStartDate, reportEndDate, getPeriodBounds, loadReport]);
+  }, [userId, getPeriodBounds]);
 
   /**
    * Обновляет приём пищи
+   * После обновления ВСЕГДА перезагружает отчёт с сервера
    */
   const updateMeal = useCallback(async (mealId: number, updates: Partial<Meal>) => {
     if (!userId) return;
@@ -269,17 +218,19 @@ function StatsPageContent() {
       const data = await response.json();
 
       if (!data.ok) {
+        console.error("[updateMeal] Ошибка от API:", data.error);
         setError(data.error || "Ошибка обновления");
         return;
       }
 
+      console.log("[updateMeal] Приём пищи обновлён, перезагружаем отчёт...");
+      
       // Закрываем форму редактирования
       setEditingMeal(null);
 
-      // Перезагружаем отчёт с сервера
+      // ВСЕГДА перезагружаем отчёт с сервера после обновления
       if (reportPeriod) {
-        const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
-        await loadReport(reportPeriod, startUTC, endUTC);
+        await loadReport(reportPeriod);
       }
     } catch (err: any) {
       console.error("[updateMeal] Ошибка:", err);
@@ -287,10 +238,11 @@ function StatsPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [userId, reportPeriod, getPeriodBounds, loadReport]);
+  }, [userId, reportPeriod, loadReport]);
 
   /**
    * Удаляет приём пищи
+   * После удаления ВСЕГДА перезагружает отчёт с сервера
    */
   const deleteMeal = useCallback(async (mealId: number) => {
     if (!confirm("Удалить этот приём пищи?")) return;
@@ -308,17 +260,19 @@ function StatsPageContent() {
       const data = await response.json();
 
       if (!data.ok) {
+        console.error("[deleteMeal] Ошибка от API:", data.error);
         setError(data.error || "Ошибка удаления");
         return;
       }
 
+      console.log("[deleteMeal] Приём пищи удалён, перезагружаем отчёт...");
+      
       // Закрываем форму редактирования
       setEditingMeal(null);
 
-      // Перезагружаем отчёт с сервера
+      // ВСЕГДА перезагружаем отчёт с сервера после удаления
       if (reportPeriod) {
-        const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
-        await loadReport(reportPeriod, startUTC, endUTC);
+        await loadReport(reportPeriod);
       }
     } catch (err: any) {
       console.error("[deleteMeal] Ошибка:", err);
@@ -326,34 +280,7 @@ function StatsPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [userId, reportPeriod, getPeriodBounds, loadReport]);
-
-  /**
-   * Обновление отчёта при фокусе окна
-   */
-  useEffect(() => {
-    if (view === "report" && reportPeriod && userId) {
-      const handleFocus = () => {
-        const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
-        loadReport(reportPeriod, startUTC, endUTC);
-      };
-
-      const handleVisibilityChange = () => {
-        if (!document.hidden) {
-          const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
-          loadReport(reportPeriod, startUTC, endUTC);
-        }
-      };
-
-      window.addEventListener("focus", handleFocus);
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-
-      return () => {
-        window.removeEventListener("focus", handleFocus);
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-      };
-    }
-  }, [view, reportPeriod, userId, getPeriodBounds, loadReport]);
+  }, [userId, reportPeriod, loadReport]);
 
   if (error && !userId) {
     return (
@@ -366,8 +293,8 @@ function StatsPageContent() {
     );
   }
 
-  // Главное меню
-  if (view === "menu") {
+  // Выбор периода
+  if (view === "period-select") {
     return (
       <div className="min-h-screen bg-background p-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
@@ -381,7 +308,7 @@ function StatsPageContent() {
 
           <div className="space-y-3">
             <button
-              onClick={() => generateReportForPeriod("today")}
+              onClick={() => loadReport("today")}
               disabled={loading}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
@@ -389,27 +316,19 @@ function StatsPageContent() {
             </button>
 
             <button
-              onClick={() => generateReportForPeriod("week")}
+              onClick={() => loadReport("week")}
               disabled={loading}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              Неделю
+              Неделя
             </button>
 
             <button
-              onClick={() => generateReportForPeriod("month")}
+              onClick={() => loadReport("month")}
               disabled={loading}
               className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Месяц
-            </button>
-
-            <button
-              onClick={() => generateReportForPeriod("year")}
-              disabled={loading}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              Год
             </button>
 
             <button
@@ -443,12 +362,9 @@ function StatsPageContent() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-textPrimary">📋 Отчет</h2>
             <div className="flex items-center gap-2">
-              {reportData && reportPeriod && (
+              {reportData.length > 0 && reportPeriod && (
                 <button
-                  onClick={() => {
-                    const { startUTC, endUTC } = getPeriodBounds(reportPeriod);
-                    loadReport(reportPeriod, startUTC, endUTC);
-                  }}
+                  onClick={() => loadReport(reportPeriod)}
                   disabled={loading}
                   className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
                   title="Обновить отчет"
@@ -458,8 +374,8 @@ function StatsPageContent() {
               )}
               <button
                 onClick={() => {
-                  setView("menu");
-                  setReportData(null);
+                  setView("period-select");
+                  setReportData([]);
                   setReportTotals(null);
                   setReportPeriod(null);
                 }}
@@ -470,7 +386,7 @@ function StatsPageContent() {
             </div>
           </div>
 
-          {!reportData && (
+          {!reportData.length && !reportPeriod && (
             <>
               <div className="space-y-4 mb-6">
                 <div>
@@ -499,7 +415,7 @@ function StatsPageContent() {
               </div>
 
               <button
-                onClick={generateReport}
+                onClick={() => loadReport("custom")}
                 disabled={loading || !reportStartDate || !reportEndDate}
                 className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-4"
               >
@@ -514,7 +430,7 @@ function StatsPageContent() {
             </div>
           )}
 
-          {loading && reportData && (
+          {loading && reportData.length > 0 && (
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm mb-4">
               Обновление...
             </div>
@@ -527,8 +443,9 @@ function StatsPageContent() {
               onCancel={() => setEditingMeal(null)}
               onDelete={() => deleteMeal(editingMeal.id)}
             />
-          ) : reportData && reportTotals && (
+          ) : reportData.length > 0 && reportTotals && (
             <div className="mt-6 space-y-4">
+              {/* Итоги за период */}
               <div className="p-4 bg-accent/10 rounded-xl">
                 <h3 className="font-semibold text-textPrimary mb-2">Итого за период:</h3>
                 <div className="space-y-1 text-sm">
@@ -538,7 +455,6 @@ function StatsPageContent() {
                         let periodNorm = dailyNorm;
                         if (reportPeriod === "week") periodNorm = dailyNorm * 7;
                         else if (reportPeriod === "month") periodNorm = dailyNorm * 30;
-                        else if (reportPeriod === "year") periodNorm = dailyNorm * 365;
                         else if (reportPeriod === "custom") {
                           const start = new Date(reportStartDate);
                           const end = new Date(reportEndDate);
@@ -561,65 +477,75 @@ function StatsPageContent() {
                 </div>
               </div>
 
+              {/* Список приёмов пищи */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-textPrimary">Приемы пищи:</h3>
-                {reportData.length === 0 ? (
-                  <div className="text-center text-textSecondary py-8">
-                    Нет записей за выбранный период
-                  </div>
-                ) : (
-                  reportData.map((meal, index) => {
-                    // Конвертируем UTC из базы в локальное время для отображения
-                    const mealDate = new Date(meal.created_at);
-                    
-                    const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-                    const dayName = dayNames[mealDate.getDay()];
-                    const formattedDate = mealDate.toLocaleDateString("ru-RU", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric"
-                    });
-                    
-                    // Проверяем, нужно ли показывать дату
-                    const prevMeal = index > 0 ? reportData[index - 1] : null;
-                    let showDate = true;
-                    if (prevMeal) {
-                      const prevDate = new Date(prevMeal.created_at);
-                      showDate = mealDate.toDateString() !== prevDate.toDateString();
-                    }
-                    
-                    return (
-                      <div key={meal.id}>
-                        {showDate && (
-                          <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
-                            🗓️ {formattedDate} {dayName}
-                          </div>
-                        )}
-                        <div 
-                          className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors cursor-pointer"
-                          onClick={() => setEditingMeal(meal)}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex-1">
-                              <div className="font-medium text-textPrimary">{meal.meal_text}</div>
-                              <div className="text-xs text-textSecondary">
-                                {mealDate.toLocaleTimeString("ru-RU", {
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                                })}
-                              </div>
+                {reportData.map((meal, index) => {
+                  // Конвертируем UTC из базы в локальное время для отображения
+                  const mealDate = new Date(meal.created_at);
+                  
+                  const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+                  const dayName = dayNames[mealDate.getDay()];
+                  const formattedDate = mealDate.toLocaleDateString("ru-RU", {
+                    day: "numeric",
+                    month: "long"
+                  });
+                  
+                  // Проверяем, нужно ли показывать дату
+                  const prevMeal = index > 0 ? reportData[index - 1] : null;
+                  let showDate = true;
+                  if (prevMeal) {
+                    const prevDate = new Date(prevMeal.created_at);
+                    showDate = mealDate.toDateString() !== prevDate.toDateString();
+                  }
+                  
+                  return (
+                    <div key={meal.id}>
+                      {showDate && (
+                        <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
+                          🗓️ {formattedDate}, {dayName}
+                        </div>
+                      )}
+                      <div className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="font-medium text-textPrimary">{meal.meal_text}</div>
+                            <div className="text-xs text-textSecondary mt-1">
+                              {mealDate.toLocaleTimeString("ru-RU", {
+                                hour: "2-digit",
+                                minute: "2-digit"
+                              })}
                             </div>
-                            <span className="text-textSecondary ml-2">✏️</span>
-                          </div>
-                          <div className="text-sm text-textSecondary">
-                            🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
                           </div>
                         </div>
+                        <div className="text-sm text-textSecondary mb-3">
+                          🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => setEditingMeal(meal)}
+                            className="flex-1 py-2 px-4 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors text-sm"
+                          >
+                            ✏️ Редактировать
+                          </button>
+                          <button
+                            onClick={() => deleteMeal(meal.id)}
+                            className="flex-1 py-2 px-4 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 transition-colors text-sm"
+                          >
+                            🗑️ Удалить
+                          </button>
+                        </div>
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+          )}
+
+          {reportData.length === 0 && reportPeriod && !loading && (
+            <div className="text-center text-textSecondary py-8">
+              Нет записей за выбранный период
             </div>
           )}
         </div>
@@ -659,6 +585,8 @@ function EditMealForm({
 
   return (
     <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-textPrimary mb-4">Редактировать приём пищи</h3>
+      
       <div>
         <label className="block text-sm font-medium text-textPrimary mb-2">Название блюда</label>
         <input
@@ -740,10 +668,11 @@ function EditMealForm({
   );
 }
 
-export default function StatsPage() {
+export default function ReportsPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <StatsPageContent />
+      <ReportsPageContent />
     </Suspense>
   );
 }
+

@@ -232,7 +232,7 @@ bot.start(async (ctx) => {
     }
 
     // Если анкета заполнена - показываем обычное меню
-    const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${userId}`;
+    const reportsUrl = `https://nutrition-app4.vercel.app/reports?id=${userId}`;
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${userId}`;
     
     await ctx.reply("Добро пожаловать! Выберите действие:", {
@@ -242,7 +242,7 @@ bot.start(async (ctx) => {
             { text: "✏️ Обновить анкету", web_app: { url: updateUrl } }
           ],
           [
-            { text: "📋 Получить отчет", web_app: { url: statsUrl } }
+            { text: "📋 Получить отчет", web_app: { url: reportsUrl } }
           ],
           [
             { text: "💡 Рекомендации" }
@@ -326,7 +326,7 @@ bot.on("message", async (ctx, next) => {
 
         if (user) {
           const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
-          const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
+          const reportsUrl = `https://nutrition-app4.vercel.app/reports?id=${user.id}`;
           
           console.log("[bot] 📤 Отправка сообщения с меню для пользователя:", user.id);
           
@@ -340,7 +340,7 @@ bot.on("message", async (ctx, next) => {
                       { text: "✏️ Обновить анкету", web_app: { url: updateUrl } }
                     ],
                     [
-                      { text: "📋 Получить отчет", web_app: { url: statsUrl } }
+                      { text: "📋 Получить отчет", web_app: { url: reportsUrl } }
                     ],
                     [
                       { text: "💡 Рекомендации" }
@@ -738,7 +738,7 @@ bot.on("text", async (ctx) => {
         .maybeSingle();
 
       const updateUrl = user ? `https://nutrition-app4.vercel.app/?id=${user.id}` : "";
-      const statsUrl = user ? `https://nutrition-app4.vercel.app/stats?id=${user.id}` : "";
+      const reportsUrl = user ? `https://nutrition-app4.vercel.app/reports?id=${user.id}` : "";
 
       // Возвращаем в главное меню
       const keyboardButtons: any[] = [
@@ -746,7 +746,7 @@ bot.on("text", async (ctx) => {
           { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
         ],
         [
-          { text: "📋 Получить отчет", web_app: user ? { url: statsUrl } : undefined }
+          { text: "📋 Получить отчет", web_app: user ? { url: reportsUrl } : undefined }
         ],
         [
           { text: "💡 Рекомендации" }
@@ -776,14 +776,14 @@ bot.on("text", async (ctx) => {
         .maybeSingle();
 
       const updateUrl = user ? `https://nutrition-app4.vercel.app/?id=${user.id}` : "";
-      const statsUrl = user ? `https://nutrition-app4.vercel.app/stats?id=${user.id}` : "";
+      const reportsUrl = user ? `https://nutrition-app4.vercel.app/reports?id=${user.id}` : "";
 
       const keyboardButtons: any[] = [
         [
           { text: "✏️ Обновить анкету", web_app: user ? { url: updateUrl } : undefined }
         ],
         [
-          { text: "📋 Получить отчет", web_app: user ? { url: statsUrl } : undefined }
+          { text: "📋 Получить отчет", web_app: user ? { url: reportsUrl } : undefined }
         ],
         [
           { text: "💡 Рекомендации" }
