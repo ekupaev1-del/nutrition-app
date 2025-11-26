@@ -15,13 +15,8 @@ interface Meal {
   created_at: string;
 }
 
-interface DayMeals {
+interface DayReport {
   date: string;
-  meals: Meal[];
-}
-
-interface ReportData {
-  mealsByDay: DayMeals[];
   totals: {
     calories: number;
     protein: number;
@@ -29,13 +24,10 @@ interface ReportData {
     carbs: number;
   };
   dailyNorm: number;
-  periodNorm: number;
-  periodDays: number;
   percentage: number;
+  meals: Meal[];
   mealsCount: number;
 }
-
-type ReportPeriod = "today" | "week" | "month" | "custom";
 
 function LoadingFallback() {
   return (
@@ -50,21 +42,21 @@ function ReportPageContent() {
   const userIdParam = searchParams.get("id");
   
   const [userId, setUserId] = useState<number | null>(null);
-  const [view, setView] = useState<"period-select" | "report">("period-select");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Данные отчёта (только для отображения)
-  const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [reportPeriod, setReportPeriod] = useState<ReportPeriod | null>(null);
-  const [reportStartDate, setReportStartDate] = useState<string>("");
-  const [reportEndDate, setReportEndDate] = useState<string>("");
+  // Календарь
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [datesWithData, setDatesWithData] = useState<string[]>([]);
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
 
-  // Данные для редактирования
+  // Отчёт за день
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dayReport, setDayReport] = useState<DayReport | null>(null);
+  const [loadingDayReport, setLoadingDayReport] = useState(false);
+
+  // Редактирование
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
-
-  // Пагинация
-  const [visibleDays, setVisibleDays] = useState(7);
 
   // Инициализация userId
   useEffect(() => {
@@ -81,167 +73,103 @@ function ReportPageContent() {
     }
   }, [userIdParam]);
 
-  // Устанавливаем даты по умолчанию
+  // Загрузка календаря при изменении месяца
   useEffect(() => {
-    const today = new Date();
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-
-    setReportEndDate(today.toISOString().split("T")[0]);
-    setReportStartDate(weekAgo.toISOString().split("T")[0]);
-  }, []);
+    if (userId) {
+      loadCalendar();
+    }
+  }, [userId, currentMonth]);
 
   /**
-   * Вычисляет границы периода в формате YYYY-MM-DD
+   * Загружает календарь (даты с данными)
    */
-  const getPeriodBounds = (period: ReportPeriod): { start: string; end: string } => {
-    const today = new Date();
-    let start: Date;
-    let end: Date;
+  const loadCalendar = async () => {
+    if (!userId) return;
 
-    switch (period) {
-      case "today":
-        start = new Date(today);
-        start.setHours(0, 0, 0, 0);
-        end = new Date(today);
-        end.setHours(23, 59, 59, 999);
-        break;
-      case "week":
-        end = new Date(today);
-        end.setHours(23, 59, 59, 999);
-        start = new Date(today);
-        start.setDate(start.getDate() - 6);
-        start.setHours(0, 0, 0, 0);
-        break;
-      case "month":
-        end = new Date(today);
-        end.setHours(23, 59, 59, 999);
-        start = new Date(today);
-        start.setDate(start.getDate() - 29);
-        start.setHours(0, 0, 0, 0);
-        break;
-      case "custom":
-        start = new Date(reportStartDate);
-        start.setHours(0, 0, 0, 0);
-        end = new Date(reportEndDate);
-        end.setHours(23, 59, 59, 999);
-        break;
-    }
-
-    return {
-      start: start.toISOString().split("T")[0],
-      end: end.toISOString().split("T")[0]
-    };
-  };
-
-  /**
-   * Загружает отчёт с сервера
-   * ВСЯ логика на бэкенде, фронт только получает готовый JSON
-   */
-  const loadReport = async (period: ReportPeriod) => {
-    if (!userId) {
-      setError("Пользователь не найден");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
+    setLoadingCalendar(true);
     try {
-      const { start, end } = getPeriodBounds(period);
-
-      // ВСЕГДА без кэша, ВСЕГДА свежий запрос к БД
-      const timestamp = Date.now();
-      const url = `/api/report?userId=${userId}&start=${start}&end=${end}&_t=${timestamp}`;
-      
-      console.log("[loadReport] === НАЧАЛО ЗАГРУЗКИ ОТЧЁТА ===", { period, start, end, userId });
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
+      const monthStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+      const response = await fetch(
+        `/api/report/calendar?userId=${userId}&month=${monthStr}`,
+        {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
         }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[loadReport] HTTP ошибка:", response.status, errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      );
 
       const data = await response.json();
-      
-      console.log("[loadReport] Ответ от API получен:", {
-        ok: data.ok,
-        hasReport: !!data.report,
-        mealsCount: data.report?.mealsCount,
-        error: data.error
-      });
 
       if (!data.ok) {
-        console.error("[loadReport] Ошибка в ответе API:", data.error);
-        setError(data.error || "Ошибка загрузки отчёта");
-        setReportData(null);
+        console.error("[loadCalendar] Ошибка:", data.error);
+        setDatesWithData([]);
         return;
       }
 
-      // ВСЕГДА создаём полностью новый объект для принудительного re-render
-      // Глубокое копирование всех вложенных объектов
-      const newReportData: ReportData = {
-        mealsByDay: data.report.mealsByDay.map(day => ({
-          date: day.date,
-          meals: day.meals.map(meal => ({ ...meal }))
-        })),
-        totals: {
-          calories: data.report.totals.calories,
-          protein: data.report.totals.protein,
-          fat: data.report.totals.fat,
-          carbs: data.report.totals.carbs
-        },
-        dailyNorm: data.report.dailyNorm,
-        periodNorm: data.report.periodNorm,
-        periodDays: data.report.periodDays,
-        percentage: data.report.percentage,
-        mealsCount: data.report.mealsCount
-      };
-      
-      setReportData(newReportData);
-      setReportPeriod(period);
-      setView("report");
-      setVisibleDays(7);
-      
-      console.log("[loadReport] === ОТЧЁТ УСПЕШНО ЗАГРУЖЕН ===", {
-        period,
-        start,
-        end,
-        mealsCount: newReportData.mealsCount,
-        daysCount: newReportData.mealsByDay.length,
-        totals: newReportData.totals,
-        firstDayMeals: newReportData.mealsByDay[0]?.meals?.length || 0
-      });
+      setDatesWithData(data.dates || []);
+    } catch (err: any) {
+      console.error("[loadCalendar] Ошибка:", err);
+      setDatesWithData([]);
+    } finally {
+      setLoadingCalendar(false);
+    }
+  };
+
+  /**
+   * Загружает отчёт за день
+   */
+  const loadDayReport = async (date: string) => {
+    if (!userId) return;
+
+    setSelectedDate(date);
+    setLoadingDayReport(true);
+    setDayReport(null);
+
+    try {
+      const response = await fetch(
+        `/api/report/day?userId=${userId}&date=${date}`,
+        {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        setError(data.error || "Ошибка загрузки отчёта");
+        setDayReport(null);
+        return;
+      }
+
+      setDayReport(data.report);
     } catch (err: any) {
       setError(err.message || "Ошибка загрузки отчёта");
-      setReportData(null);
+      setDayReport(null);
     } finally {
-      setLoading(false);
+      setLoadingDayReport(false);
     }
   };
 
   /**
    * Обновляет приём пищи
-   * Вызывает API, затем перезагружает отчёт
    */
   const updateMeal = async (mealId: number, updates: Partial<Meal>) => {
-    if (!userId) return;
+    if (!userId || !selectedDate) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      // Вызываем API обновления
       const response = await fetch('/api/meal/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,38 +187,13 @@ function ReportPageContent() {
         return;
       }
 
-      console.log("[updateMeal] ✅ Приём пищи обновлён в БД");
-
       // Закрываем форму
       setEditingMeal(null);
 
-      // КРИТИЧНО: ВСЕГДА перезагружаем отчёт с сервера
-      // Используем текущий период, если он есть, иначе используем последний сохранённый
-      let periodToReload: ReportPeriod;
-      
-      if (reportPeriod) {
-        periodToReload = reportPeriod;
-      } else if (reportData) {
-        // Если reportPeriod не установлен, но есть данные, пробуем определить период
-        // По умолчанию используем "today"
-        periodToReload = "today";
-      } else {
-        console.warn("[updateMeal] Не удалось определить период, используем 'today'");
-        periodToReload = "today";
-      }
-      
-      console.log("[updateMeal] Перезагружаем отчёт для периода:", periodToReload);
-      
-      // Даём БД время на обновление (увеличено до 1000ms для гарантии)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Очищаем старые данные перед загрузкой
-      setReportData(null);
-      
-      // Загружаем свежие данные с сервера
-      await loadReport(periodToReload);
-      
-      console.log("[updateMeal] ✅ Отчёт перезагружен, UI должен обновиться");
+      // ВСЕГДА перезагружаем отчёт с сервера
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadDayReport(selectedDate);
+      await loadCalendar(); // Обновляем календарь тоже
     } catch (err: any) {
       setError(err.message || "Ошибка обновления");
     } finally {
@@ -300,19 +203,15 @@ function ReportPageContent() {
 
   /**
    * Удаляет приём пищи
-   * Вызывает API, затем перезагружает отчёт
    */
   const deleteMeal = async (mealId: number) => {
     if (!confirm("Удалить этот приём пищи?")) return;
-    if (!userId) return;
+    if (!userId || !selectedDate) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      console.log("[deleteMeal] === НАЧАЛО УДАЛЕНИЯ ===", { mealId });
-      
-      // Вызываем API удаления
       const response = await fetch('/api/meal/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -320,59 +219,75 @@ function ReportPageContent() {
         cache: 'no-store'
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[deleteMeal] HTTP ошибка:", response.status, errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const data = await response.json();
-      
-      console.log("[deleteMeal] Ответ от API:", { ok: data.ok, error: data.error });
 
       if (!data.ok) {
-        console.error("[deleteMeal] Ошибка в ответе API:", data.error);
         setError(data.error || "Ошибка удаления");
         return;
       }
 
-      console.log("[deleteMeal] ✅ Приём пищи удалён из БД");
-
       // Закрываем форму
       setEditingMeal(null);
 
-      // КРИТИЧНО: ВСЕГДА перезагружаем отчёт с сервера
-      // Используем текущий период, если он есть, иначе используем последний сохранённый
-      let periodToReload: ReportPeriod;
-      
-      if (reportPeriod) {
-        periodToReload = reportPeriod;
-      } else if (reportData) {
-        // Если reportPeriod не установлен, но есть данные, пробуем определить период
-        // По умолчанию используем "today"
-        periodToReload = "today";
-      } else {
-        console.warn("[deleteMeal] Не удалось определить период, используем 'today'");
-        periodToReload = "today";
-      }
-      
-      console.log("[deleteMeal] Перезагружаем отчёт для периода:", periodToReload);
-      
-      // Даём БД время на обновление (увеличено до 1000ms для гарантии)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Очищаем старые данные перед загрузкой
-      setReportData(null);
-      
-      // Загружаем свежие данные с сервера
-      await loadReport(periodToReload);
-      
-      console.log("[deleteMeal] ✅ Отчёт перезагружен, UI должен обновиться");
+      // ВСЕГДА перезагружаем отчёт с сервера
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadDayReport(selectedDate);
+      await loadCalendar(); // Обновляем календарь тоже
     } catch (err: any) {
       setError(err.message || "Ошибка удаления");
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Переключение месяца
+   */
+  const changeMonth = (delta: number) => {
+    const newMonth = new Date(currentMonth);
+    newMonth.setMonth(newMonth.getMonth() + delta);
+    setCurrentMonth(newMonth);
+  };
+
+  /**
+   * Генерация календаря
+   */
+  const getCalendarDays = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+
+    // Первый день месяца
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    // День недели первого дня (0 = воскресенье, 1 = понедельник, ...)
+    const startDay = firstDay.getDay();
+    
+    // Количество дней в месяце
+    const daysInMonth = lastDay.getDate();
+
+    const days: (number | null)[] = [];
+
+    // Пустые ячейки до первого дня
+    for (let i = 0; i < startDay; i++) {
+      days.push(null);
+    }
+
+    // Дни месяца
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(day);
+    }
+
+    return days;
+  };
+
+  /**
+   * Форматирование даты для проверки
+   */
+  const getDateKey = (day: number): string => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
   if (error && !userId) {
@@ -386,148 +301,30 @@ function ReportPageContent() {
     );
   }
 
-  // Выбор периода
-  if (view === "period-select") {
-    return (
-      <div className="min-h-screen bg-background p-4 py-8">
-        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
-          <h1 className="text-2xl font-bold mb-6 text-textPrimary text-center">
-            📋 Получить отчет
-          </h1>
-
-          <div className="mb-4">
-            <p className="text-textSecondary text-center mb-6">Выберите период:</p>
-          </div>
-
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                setReportData(null); // Очищаем старые данные
-                loadReport("today");
-              }}
-              disabled={loading}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              Сегодня
-            </button>
-
-            <button
-              onClick={() => {
-                setReportData(null); // Очищаем старые данные
-                loadReport("week");
-              }}
-              disabled={loading}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              Неделя
-            </button>
-
-            <button
-              onClick={() => {
-                setReportData(null); // Очищаем старые данные
-                loadReport("month");
-              }}
-              disabled={loading}
-              className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              Месяц
-            </button>
-
-            <button
-              onClick={() => setView("report")}
-              className="w-full py-4 px-6 bg-accent/20 text-accent font-semibold rounded-xl hover:bg-accent/30 transition-colors"
-            >
-              Выбранный период
-            </button>
-
-            <button
-              onClick={() => {
-                if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
-                  (window as any).Telegram.WebApp.close();
-                }
-              }}
-              className="w-full py-3 px-6 bg-gray-100 text-textPrimary font-medium rounded-xl hover:bg-gray-200 transition-colors mt-4"
-            >
-              Закрыть
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Страница отчета
-  if (view === "report") {
+  // Модальное окно с отчётом за день
+  if (selectedDate && (dayReport || loadingDayReport)) {
     return (
       <div className="min-h-screen bg-background p-4 py-8">
         <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-textPrimary">📋 Отчет</h2>
-            <div className="flex items-center gap-2">
-              {reportData && reportPeriod && (
-                <button
-                  onClick={() => {
-                    console.log("[refresh] Принудительное обновление отчёта");
-                    setReportData(null); // Очищаем перед загрузкой
-                    loadReport(reportPeriod);
-                  }}
-                  disabled={loading}
-                  className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
-                  title="Обновить отчет"
-                >
-                  🔄
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setView("period-select");
-                  setReportData(null);
-                  setReportPeriod(null);
-                }}
-                className="text-textSecondary hover:text-textPrimary"
-              >
-                ← Назад
-              </button>
-            </div>
+            <h2 className="text-xl font-bold text-textPrimary">
+              📋 Отчёт за {new Date(selectedDate).toLocaleDateString("ru-RU", {
+                day: "numeric",
+                month: "long",
+                year: "numeric"
+              })}
+            </h2>
+            <button
+              onClick={() => {
+                setSelectedDate(null);
+                setDayReport(null);
+                setEditingMeal(null);
+              }}
+              className="text-textSecondary hover:text-textPrimary"
+            >
+              ← Назад
+            </button>
           </div>
-
-          {!reportData && !reportPeriod && (
-            <>
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-textPrimary mb-2">
-                    Начало периода
-                  </label>
-                  <input
-                    type="date"
-                    value={reportStartDate}
-                    onChange={(e) => setReportStartDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-textPrimary mb-2">
-                    Конец периода
-                  </label>
-                  <input
-                    type="date"
-                    value={reportEndDate}
-                    onChange={(e) => setReportEndDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-accent transition-colors bg-white text-textPrimary"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={() => loadReport("custom")}
-                disabled={loading || !reportStartDate || !reportEndDate}
-                className="w-full py-4 px-6 bg-accent text-white font-semibold rounded-xl shadow-soft hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-              >
-                {loading ? "Генерирую отчет..." : "Сгенерировать отчет"}
-              </button>
-            </>
-          )}
 
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
@@ -535,119 +332,169 @@ function ReportPageContent() {
             </div>
           )}
 
-          {loading && reportData && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm mb-4">
-              Обновление...
-            </div>
-          )}
-
-          {editingMeal ? (
-            <EditMealForm
-              meal={editingMeal}
-              onSave={(updates) => updateMeal(editingMeal.id, updates)}
-              onCancel={() => setEditingMeal(null)}
-              onDelete={() => deleteMeal(editingMeal.id)}
-            />
-          ) : reportData && (
-            <div className="mt-6 space-y-4">
-              {/* Итоги за период (данные с сервера) */}
-              <div className="p-4 bg-accent/10 rounded-xl">
-                <h3 className="font-semibold text-textPrimary mb-2">Итого за период:</h3>
-                <div className="space-y-1 text-sm">
-                  <div className="mb-2 pb-2 border-b border-gray-200">
-                    <div className="font-medium">
-                      🔥 {reportData.totals.calories.toFixed(0)} / {reportData.periodNorm.toFixed(0)} ккал ({reportData.percentage.toFixed(1)}%)
+          {loadingDayReport ? (
+            <div className="text-center text-textSecondary py-8">Загрузка...</div>
+          ) : dayReport ? (
+            <>
+              {editingMeal ? (
+                <EditMealForm
+                  meal={editingMeal}
+                  onSave={(updates) => updateMeal(editingMeal.id, updates)}
+                  onCancel={() => setEditingMeal(null)}
+                  onDelete={() => deleteMeal(editingMeal.id)}
+                />
+              ) : (
+                <div className="space-y-4">
+                  {/* Итоги за день */}
+                  <div className="p-4 bg-accent/10 rounded-xl">
+                    <h3 className="font-semibold text-textPrimary mb-2">Итого за день:</h3>
+                    <div className="space-y-1 text-sm">
+                      <div className="mb-2 pb-2 border-b border-gray-200">
+                        <div className="font-medium">
+                          🔥 {dayReport.totals.calories.toFixed(0)} / {dayReport.dailyNorm.toFixed(0)} ккал ({dayReport.percentage.toFixed(1)}%)
+                        </div>
+                      </div>
+                      <div>🔥 {dayReport.totals.calories.toFixed(0)} ккал</div>
+                      <div>🥚 {dayReport.totals.protein.toFixed(1)} г белков</div>
+                      <div>🥥 {dayReport.totals.fat.toFixed(1)} г жиров</div>
+                      <div>🍚 {dayReport.totals.carbs.toFixed(1)} г углеводов</div>
                     </div>
                   </div>
-                  <div>🔥 {reportData.totals.calories.toFixed(0)} ккал</div>
-                  <div>🥚 {reportData.totals.protein.toFixed(1)} г белков</div>
-                  <div>🥥 {reportData.totals.fat.toFixed(1)} г жиров</div>
-                  <div>🍚 {reportData.totals.carbs.toFixed(1)} г углеводов</div>
-                </div>
-              </div>
 
-              {/* Список приёмов пищи по дням (данные с сервера) */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-textPrimary">Приемы пищи:</h3>
-                {reportData.mealsByDay.length === 0 ? (
-                  <div className="text-center text-textSecondary py-8">
-                    Нет записей за выбранный период
-                  </div>
-                ) : (
-                  <>
-                    {reportData.mealsByDay.slice(0, visibleDays).map((dayData) => {
-                      const dayDate = new Date(dayData.date);
-                      const dayNames = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-                      const dayName = dayNames[dayDate.getDay()];
-                      const formattedDate = dayDate.toLocaleDateString("ru-RU", {
-                        day: "numeric",
-                        month: "long"
-                      });
-
-                      return (
-                        <div key={dayData.date}>
-                          <div className="text-lg font-bold text-textPrimary mb-3 mt-6 first:mt-0 py-2 px-3 bg-accent/15 rounded-lg border-l-4 border-accent">
-                            🗓️ {formattedDate}, {dayName}
-                          </div>
-                          {dayData.meals.map((meal) => {
-                            const mealDate = new Date(meal.created_at);
-                            return (
-                              <div key={meal.id} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors mb-3">
-                                <div className="flex justify-between items-start mb-2">
-                                  <div className="flex-1">
-                                    <div className="font-medium text-textPrimary">{meal.meal_text}</div>
-                                    <div className="text-xs text-textSecondary mt-1">
-                                      {mealDate.toLocaleTimeString("ru-RU", {
-                                        hour: "2-digit",
-                                        minute: "2-digit"
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="text-sm text-textSecondary mb-3">
-                                  🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
-                                </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => setEditingMeal(meal)}
-                                    className="flex-1 py-2 px-4 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors text-sm"
-                                  >
-                                    ✏️ Редактировать
-                                  </button>
-                                  <button
-                                    onClick={() => deleteMeal(meal.id)}
-                                    className="flex-1 py-2 px-4 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 transition-colors text-sm"
-                                  >
-                                    🗑️ Удалить
-                                  </button>
+                  {/* Список приёмов пищи */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-textPrimary">Приемы пищи:</h3>
+                    {dayReport.meals.length === 0 ? (
+                      <div className="text-center text-textSecondary py-8">
+                        Нет записей за этот день
+                      </div>
+                    ) : (
+                      dayReport.meals.map((meal) => {
+                        const mealDate = new Date(meal.created_at);
+                        return (
+                          <div key={meal.id} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex-1">
+                                <div className="font-medium text-textPrimary">{meal.meal_text}</div>
+                                <div className="text-xs text-textSecondary mt-1">
+                                  {mealDate.toLocaleTimeString("ru-RU", {
+                                    hour: "2-digit",
+                                    minute: "2-digit"
+                                  })}
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-
-                    {/* Пагинация */}
-                    {reportData.mealsByDay.length > visibleDays && (
-                      <button
-                        onClick={() => setVisibleDays(prev => prev + 7)}
-                        className="w-full py-3 px-6 bg-accent/20 text-accent font-medium rounded-xl hover:bg-accent/30 transition-colors"
-                      >
-                        Показать ещё ({reportData.mealsByDay.length - visibleDays} дней)
-                      </button>
+                            </div>
+                            <div className="text-sm text-textSecondary mb-3">
+                              🔥 {meal.calories} ккал | 🥚 {Number(meal.protein).toFixed(1)}г | 🥥 {Number(meal.fat).toFixed(1)}г | 🍚 {Number(meal.carbs || 0).toFixed(1)}г
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setEditingMeal(meal)}
+                                className="flex-1 py-2 px-4 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors text-sm"
+                              >
+                                ✏️ Редактировать
+                              </button>
+                              <button
+                                onClick={() => deleteMeal(meal.id)}
+                                className="flex-1 py-2 px-4 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 transition-colors text-sm"
+                              >
+                                🗑️ Удалить
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : null}
         </div>
       </div>
     );
   }
 
-  return null;
+  // Календарь
+  return (
+    <div className="min-h-screen bg-background p-4 py-8">
+      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-soft p-8">
+        <h1 className="text-2xl font-bold mb-6 text-textPrimary text-center">
+          📅 Календарь отчётов
+        </h1>
+
+        {/* Переключение месяцев */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={() => changeMonth(-1)}
+            disabled={loadingCalendar}
+            className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
+          >
+            ←
+          </button>
+          <h2 className="text-lg font-semibold text-textPrimary">
+            {currentMonth.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
+          </h2>
+          <button
+            onClick={() => changeMonth(1)}
+            disabled={loadingCalendar}
+            className="px-4 py-2 bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
+          >
+            →
+          </button>
+        </div>
+
+        {/* Календарь */}
+        <div className="mb-4">
+          <div className="grid grid-cols-7 gap-2 mb-2">
+            {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day) => (
+              <div key={day} className="text-center text-sm font-medium text-textSecondary py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-2">
+            {getCalendarDays().map((day, index) => {
+              if (day === null) {
+                return <div key={`empty-${index}`} className="aspect-square" />;
+              }
+
+              const dateKey = getDateKey(day);
+              const hasData = datesWithData.includes(dateKey);
+              const isToday = dateKey === new Date().toISOString().split("T")[0];
+
+              return (
+                <button
+                  key={day}
+                  onClick={() => loadDayReport(dateKey)}
+                  className={`
+                    aspect-square rounded-lg font-medium text-sm transition-colors
+                    ${hasData 
+                      ? 'bg-accent text-white hover:bg-accent/90' 
+                      : 'bg-gray-100 text-textPrimary hover:bg-gray-200'
+                    }
+                    ${isToday ? 'ring-2 ring-accent ring-offset-2' : ''}
+                  `}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {loadingCalendar && (
+          <div className="text-center text-textSecondary text-sm py-2">
+            Загрузка...
+          </div>
+        )}
+
+        <div className="mt-6 text-center text-sm text-textSecondary">
+          Нажмите на день, чтобы посмотреть отчёт
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function EditMealForm({
@@ -769,3 +616,4 @@ export default function ReportPage() {
     </Suspense>
   );
 }
+
