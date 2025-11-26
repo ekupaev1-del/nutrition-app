@@ -336,20 +336,38 @@ function ReportPageContent() {
         return;
       }
 
-      console.log("[deleteMeal] ✅ Приём пищи удалён из БД, перезагружаем отчёт...");
+      console.log("[deleteMeal] ✅ Приём пищи удалён из БД");
 
       // Закрываем форму
       setEditingMeal(null);
 
-      // ВСЕГДА перезагружаем отчёт с сервера
-      // Используем текущий период или "today" по умолчанию
-      const periodToReload = reportPeriod || "today";
+      // КРИТИЧНО: ВСЕГДА перезагружаем отчёт с сервера
+      // Используем текущий период, если он есть, иначе используем последний сохранённый
+      let periodToReload: ReportPeriod;
+      
+      if (reportPeriod) {
+        periodToReload = reportPeriod;
+      } else if (reportData) {
+        // Если reportPeriod не установлен, но есть данные, пробуем определить период
+        // По умолчанию используем "today"
+        periodToReload = "today";
+      } else {
+        console.warn("[deleteMeal] Не удалось определить период, используем 'today'");
+        periodToReload = "today";
+      }
       
       console.log("[deleteMeal] Перезагружаем отчёт для периода:", periodToReload);
-      // Даём БД время на обновление
-      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Даём БД время на обновление (увеличено до 1000ms для гарантии)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Очищаем старые данные перед загрузкой
+      setReportData(null);
+      
+      // Загружаем свежие данные с сервера
       await loadReport(periodToReload);
-      console.log("[deleteMeal] Отчёт перезагружен, данные должны быть актуальны");
+      
+      console.log("[deleteMeal] ✅ Отчёт перезагружен, UI должен обновиться");
     } catch (err: any) {
       setError(err.message || "Ошибка удаления");
     } finally {
