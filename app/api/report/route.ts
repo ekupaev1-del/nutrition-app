@@ -30,12 +30,12 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const userId = url.searchParams.get("userId");
-    const periodStart = url.searchParams.get("periodStart");
-    const periodEnd = url.searchParams.get("periodEnd");
+    const start = url.searchParams.get("start");
+    const end = url.searchParams.get("end");
 
-    if (!userId || !periodStart || !periodEnd) {
+    if (!userId || !start || !end) {
       return NextResponse.json(
-        { ok: false, error: "userId, periodStart и periodEnd обязательны" },
+        { ok: false, error: "userId, start и end обязательны" },
         { status: 400 }
       );
     }
@@ -71,8 +71,8 @@ export async function GET(req: Request) {
     }
 
     // Парсим даты периода (локальное время пользователя)
-    const startDate = new Date(periodStart + "T00:00:00");
-    const endDate = new Date(periodEnd + "T23:59:59.999");
+    const startDate = new Date(start + "T00:00:00");
+    const endDate = new Date(end + "T23:59:59.999");
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return NextResponse.json(
@@ -89,21 +89,13 @@ export async function GET(req: Request) {
     }
 
     // КРИТИЧНО: Правильная конвертация локальных дат в UTC
-    // Не используем setUTCHours, так как это сломает фильтрацию для разных таймзон
-    // Вместо этого создаём даты в локальном времени и конвертируем через toISOString()
-    const startLocal = new Date(periodStart + "T00:00:00");
-    const endLocal = new Date(periodEnd + "T23:59:59.999");
+    // Созём даты в локальном времени и конвертируем через toISOString()
+    const startLocal = new Date(start + "T00:00:00");
+    const endLocal = new Date(end + "T23:59:59.999");
     
-    // toISOString() автоматически конвертирует в UTC
+    // toISOString() автоматически конвертирует в UTC с учётом таймзоны
     const startUTC = startLocal.toISOString();
     const endUTC = endLocal.toISOString();
-    
-    console.log("[/api/report] Фильтрация по датам:", {
-      periodStart,
-      periodEnd,
-      startUTC,
-      endUTC
-    });
 
     // Получаем все записи за период из БД
     const { data: meals, error: mealsError } = await supabase

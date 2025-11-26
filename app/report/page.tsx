@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense } from "react";
 import "../globals.css";
 
 interface Meal {
@@ -54,7 +54,7 @@ function ReportPageContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Данные отчёта (только для отображения, не вычисляем на фронте)
+  // Данные отчёта (только для отображения)
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [reportPeriod, setReportPeriod] = useState<ReportPeriod | null>(null);
   const [reportStartDate, setReportStartDate] = useState<string>("");
@@ -63,8 +63,8 @@ function ReportPageContent() {
   // Данные для редактирования
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
 
-  // Пагинация для длинных периодов
-  const [visibleDays, setVisibleDays] = useState(7); // Показываем первые 7 дней
+  // Пагинация
+  const [visibleDays, setVisibleDays] = useState(7);
 
   // Инициализация userId
   useEffect(() => {
@@ -92,9 +92,9 @@ function ReportPageContent() {
   }, []);
 
   /**
-   * Вычисляет границы периода в локальном времени пользователя
+   * Вычисляет границы периода в формате YYYY-MM-DD
    */
-  const getPeriodBounds = useCallback((period: ReportPeriod): { start: string; end: string } => {
+  const getPeriodBounds = (period: ReportPeriod): { start: string; end: string } => {
     const today = new Date();
     let start: Date;
     let end: Date;
@@ -129,16 +129,16 @@ function ReportPageContent() {
     }
 
     return {
-      start: start.toISOString().split("T")[0], // YYYY-MM-DD
+      start: start.toISOString().split("T")[0],
       end: end.toISOString().split("T")[0]
     };
-  }, [reportStartDate, reportEndDate]);
+  };
 
   /**
    * Загружает отчёт с сервера
-   * ВСЯ логика формирования отчёта на бэкенде, фронт только отображает
+   * ВСЯ логика на бэкенде, фронт только получает готовый JSON
    */
-  const loadReport = useCallback(async (period: ReportPeriod) => {
+  const loadReport = async (period: ReportPeriod) => {
     if (!userId) {
       setError("Пользователь не найден");
       return;
@@ -150,18 +150,17 @@ function ReportPageContent() {
     try {
       const { start, end } = getPeriodBounds(period);
 
-      // ВСЕГДА добавляем уникальный timestamp для предотвращения кеширования
+      // ВСЕГДА без кэша
       const timestamp = Date.now();
       const response = await fetch(
-        `/api/report?userId=${userId}&periodStart=${start}&periodEnd=${end}&_t=${timestamp}`,
+        `/api/report?userId=${userId}&start=${start}&end=${end}&_t=${timestamp}`,
         {
           method: 'GET',
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
-            'Expires': '0',
-            'X-Request-ID': `report-${timestamp}-${Math.random()}`
+            'Expires': '0'
           }
         }
       );
@@ -169,95 +168,73 @@ function ReportPageContent() {
       const data = await response.json();
 
       if (!data.ok) {
-        console.error("[loadReport] Ошибка от API:", data.error);
         setError(data.error || "Ошибка загрузки отчёта");
         setReportData(null);
         return;
       }
 
-      // Получаем готовый отчёт с бэкенда (без вычислений на фронте)
-      console.log("[loadReport] Получены данные от API:", {
-        mealsCount: data.report?.mealsCount,
-        totals: data.report?.totals,
-        daysCount: data.report?.mealsByDay?.length
-      });
-      
-      // ВСЕГДА создаём новый объект для принудительного re-render
-      setReportData({ ...data.report });
+      // Просто сохраняем готовый отчёт с сервера
+      setReportData(data.report);
       setReportPeriod(period);
       setView("report");
-      setVisibleDays(7); // Сбрасываем пагинацию
-      
-      console.log("[loadReport] State обновлён, reportData установлен");
+      setVisibleDays(7);
     } catch (err: any) {
-      console.error("[loadReport] Ошибка:", err);
       setError(err.message || "Ошибка загрузки отчёта");
       setReportData(null);
     } finally {
       setLoading(false);
     }
-  }, [userId, getPeriodBounds]);
+  };
 
   /**
    * Обновляет приём пищи
-   * После обновления ВСЕГДА перезагружает отчёт с сервера
+   * Вызывает API, затем перезагружает отчёт
    */
-  const updateMeal = useCallback(async (mealId: number, updates: Partial<Meal>) => {
+  const updateMeal = async (mealId: number, updates: Partial<Meal>) => {
     if (!userId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/meals/${mealId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+      // Вызываем API обновления
+      const response = await fetch('/api/meal/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: mealId,
+          ...updates
+        }),
         cache: 'no-store'
       });
 
       const data = await response.json();
 
       if (!data.ok) {
-        console.error("[updateMeal] Ошибка от API:", data.error);
         setError(data.error || "Ошибка обновления");
         return;
       }
 
-      console.log("[updateMeal] Приём пищи обновлён, перезагружаем отчёт...", {
-        mealId,
-        updates,
-        currentReportPeriod: reportPeriod
-      });
-      
-      // Закрываем форму редактирования
+      // Закрываем форму
       setEditingMeal(null);
 
-      // ВСЕГДА перезагружаем отчёт с сервера (не обновляем локальный state)
-      // КРИТИЧНО: если reportPeriod не установлен, используем последний сохранённый период
-      const periodToReload = reportPeriod || (reportData ? "today" : null);
-      
-      if (periodToReload) {
-        console.log("[updateMeal] Перезагружаем отчёт для периода:", periodToReload);
-        await new Promise(resolve => setTimeout(resolve, 500)); // Даём БД время на обновление
-        await loadReport(periodToReload);
-        console.log("[updateMeal] Отчёт перезагружен");
-      } else {
-        console.warn("[updateMeal] Не удалось определить период для перезагрузки");
+      // Перезагружаем отчёт с сервера
+      if (reportPeriod) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await loadReport(reportPeriod);
       }
     } catch (err: any) {
-      console.error("[updateMeal] Ошибка:", err);
       setError(err.message || "Ошибка обновления");
     } finally {
       setLoading(false);
     }
-  }, [userId, reportPeriod, loadReport, reportData]);
+  };
 
   /**
    * Удаляет приём пищи
-   * После удаления ВСЕГДА перезагружает отчёт с сервера
+   * Вызывает API, затем перезагружает отчёт
    */
-  const deleteMeal = useCallback(async (mealId: number) => {
+  const deleteMeal = async (mealId: number) => {
     if (!confirm("Удалить этот приём пищи?")) return;
     if (!userId) return;
 
@@ -265,73 +242,35 @@ function ReportPageContent() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/meals/${mealId}`, {
-        method: "DELETE",
+      // Вызываем API удаления
+      const response = await fetch('/api/meal/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: mealId }),
         cache: 'no-store'
       });
 
       const data = await response.json();
 
       if (!data.ok) {
-        console.error("[deleteMeal] Ошибка от API:", data.error);
         setError(data.error || "Ошибка удаления");
         return;
       }
 
-      console.log("[deleteMeal] Приём пищи удалён, перезагружаем отчёт...", {
-        mealId,
-        currentReportPeriod: reportPeriod
-      });
-      
-      // Закрываем форму редактирования
+      // Закрываем форму
       setEditingMeal(null);
 
-      // ВСЕГДА перезагружаем отчёт с сервера (не обновляем локальный state)
-      // КРИТИЧНО: если reportPeriod не установлен, используем последний сохранённый период
-      const periodToReload = reportPeriod || (reportData ? "today" : null);
-      
-      if (periodToReload) {
-        console.log("[deleteMeal] Перезагружаем отчёт для периода:", periodToReload);
-        await new Promise(resolve => setTimeout(resolve, 500)); // Даём БД время на обновление
-        await loadReport(periodToReload);
-        console.log("[deleteMeal] Отчёт перезагружен");
-      } else {
-        console.warn("[deleteMeal] Не удалось определить период для перезагрузки");
+      // Перезагружаем отчёт с сервера
+      if (reportPeriod) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await loadReport(reportPeriod);
       }
     } catch (err: any) {
-      console.error("[deleteMeal] Ошибка:", err);
       setError(err.message || "Ошибка удаления");
     } finally {
       setLoading(false);
     }
-  }, [userId, reportPeriod, loadReport, reportData]);
-
-  /**
-   * Автоматическое обновление отчёта при фокусе окна
-   */
-  useEffect(() => {
-    if (view === "report" && reportPeriod && userId && !loading) {
-      const handleFocus = () => {
-        console.log("[report] Окно получило фокус, обновляем отчёт...");
-        loadReport(reportPeriod);
-      };
-
-      const handleVisibilityChange = () => {
-        if (!document.hidden) {
-          console.log("[report] Страница стала видимой, обновляем отчёт...");
-          loadReport(reportPeriod);
-        }
-      };
-
-      window.addEventListener("focus", handleFocus);
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-
-      return () => {
-        window.removeEventListener("focus", handleFocus);
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-      };
-    }
-  }, [view, reportPeriod, userId, loadReport, loading]);
+  };
 
   if (error && !userId) {
     return (
@@ -495,7 +434,7 @@ function ReportPageContent() {
             />
           ) : reportData && (
             <div className="mt-6 space-y-4">
-              {/* Итоги за период (данные с бэкенда) */}
+              {/* Итоги за период (данные с сервера) */}
               <div className="p-4 bg-accent/10 rounded-xl">
                 <h3 className="font-semibold text-textPrimary mb-2">Итого за период:</h3>
                 <div className="space-y-1 text-sm">
@@ -511,7 +450,7 @@ function ReportPageContent() {
                 </div>
               </div>
 
-              {/* Список приёмов пищи по дням (данные с бэкенда) */}
+              {/* Список приёмов пищи по дням (данные с сервера) */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-textPrimary">Приемы пищи:</h3>
                 {reportData.mealsByDay.length === 0 ? (
@@ -573,7 +512,7 @@ function ReportPageContent() {
                       );
                     })}
 
-                    {/* Пагинация: показать ещё */}
+                    {/* Пагинация */}
                     {reportData.mealsByDay.length > visibleDays && (
                       <button
                         onClick={() => setVisibleDays(prev => prev + 7)}
@@ -714,4 +653,3 @@ export default function ReportPage() {
     </Suspense>
   );
 }
-
