@@ -121,17 +121,21 @@ function ReportPageContent() {
 
   /**
    * Загружает отчёт за день
+   * ВСЕГДА создаёт новый объект для принудительного re-render
    */
   const loadDayReport = async (date: string) => {
     if (!userId) return;
 
     setSelectedDate(date);
     setLoadingDayReport(true);
+    // КРИТИЧНО: Очищаем старые данные перед загрузкой
     setDayReport(null);
+    setError(null);
 
     try {
+      const timestamp = Date.now();
       const response = await fetch(
-        `/api/report/day?userId=${userId}&date=${date}`,
+        `/api/report/day?userId=${userId}&date=${date}&_t=${timestamp}`,
         {
           method: 'GET',
           cache: 'no-store',
@@ -143,6 +147,10 @@ function ReportPageContent() {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (!data.ok) {
@@ -151,8 +159,30 @@ function ReportPageContent() {
         return;
       }
 
-      setDayReport(data.report);
+      // КРИТИЧНО: Создаём полностью новый объект для принудительного re-render
+      // Глубокое копирование всех вложенных объектов
+      const newReport: DayReport = {
+        date: data.report.date,
+        totals: {
+          calories: data.report.totals.calories,
+          protein: data.report.totals.protein,
+          fat: data.report.totals.fat,
+          carbs: data.report.totals.carbs
+        },
+        dailyNorm: data.report.dailyNorm,
+        percentage: data.report.percentage,
+        meals: data.report.meals.map((meal: Meal) => ({ ...meal })),
+        mealsCount: data.report.mealsCount
+      };
+
+      setDayReport(newReport);
+      console.log("[loadDayReport] Отчёт загружен:", {
+        date,
+        mealsCount: newReport.mealsCount,
+        totals: newReport.totals
+      });
     } catch (err: any) {
+      console.error("[loadDayReport] Ошибка:", err);
       setError(err.message || "Ошибка загрузки отчёта");
       setDayReport(null);
     } finally {
@@ -372,7 +402,7 @@ function ReportPageContent() {
                       dayReport.meals.map((meal) => {
                         const mealDate = new Date(meal.created_at);
                         return (
-                          <div key={meal.id} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
+                          <div key={`meal-${meal.id}-${meal.updated_at || meal.created_at}`} className="p-4 border border-gray-200 rounded-xl hover:border-accent transition-colors">
                             <div className="flex justify-between items-start mb-2">
                               <div className="flex-1">
                                 <div className="font-medium text-textPrimary">{meal.meal_text}</div>
