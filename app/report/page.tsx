@@ -488,8 +488,14 @@ function ReportPageContent() {
             </div>
           )}
 
+          {loading && (
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm mb-4">
+              ⏳ Обновление данных...
+            </div>
+          )}
+
           {loadingDayReport ? (
-            <div className="text-center text-textSecondary py-8">Загрузка...</div>
+            <div className="text-center text-textSecondary py-8">Загрузка отчёта...</div>
           ) : dayReport ? (
             <>
               {editingMeal ? (
