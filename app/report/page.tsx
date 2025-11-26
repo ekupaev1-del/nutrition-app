@@ -175,10 +175,12 @@ function ReportPageContent() {
    * Загружает отчёт за день
    * ВСЕГДА создаёт новый объект для принудительного re-render
    */
-  const loadDayReport = async (date: string) => {
+  const loadDayReport = async (date: string, forceRefresh: boolean = false) => {
     if (!userId) return;
 
-    setSelectedDate(date);
+    if (forceRefresh || date !== selectedDate) {
+      setSelectedDate(date);
+    }
     setLoadingDayReport(true);
     // КРИТИЧНО: Очищаем старые данные перед загрузкой
     setDayReport(null);
@@ -468,18 +470,34 @@ function ReportPageContent() {
                 year: "numeric"
               })}
             </h2>
-            <button
-              onClick={() => {
-                setSelectedDate(null);
-                setDayReport(null);
-                setEditingMeal(null);
-                // Обновляем календарь при возврате
-                loadCalendar();
-              }}
-              className="text-textSecondary hover:text-textPrimary"
-            >
-              ← Назад
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  console.log("[manual-refresh] Ручное обновление отчёта");
+                  setDayReport(null);
+                  setLoadingDayReport(true);
+                  loadDayReport(selectedDate);
+                  loadCalendar();
+                }}
+                disabled={loadingDayReport || loading}
+                className="px-3 py-1.5 text-sm bg-accent/20 text-accent font-medium rounded-lg hover:bg-accent/30 transition-colors disabled:opacity-50"
+                title="Обновить отчёт"
+              >
+                🔄
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedDate(null);
+                  setDayReport(null);
+                  setEditingMeal(null);
+                  // Обновляем календарь при возврате
+                  loadCalendar();
+                }}
+                className="text-textSecondary hover:text-textPrimary"
+              >
+                ← Назад
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -631,7 +649,8 @@ function ReportPageContent() {
                   onClick={() => {
                     // Обновляем календарь перед открытием отчёта
                     loadCalendar();
-                    loadDayReport(dateKey);
+                    // Принудительно обновляем отчёт
+                    loadDayReport(dateKey, true);
                   }}
                   className={`
                     aspect-square rounded-lg font-medium text-sm transition-colors
