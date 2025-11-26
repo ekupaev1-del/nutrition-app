@@ -3,6 +3,20 @@ import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = 'force-dynamic';
 
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+/**
+ * OPTIONS handler for CORS
+ */
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 /**
  * GET /api/report/calendar
  * 
@@ -123,13 +137,13 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       dates
-    });
+    }, { headers: corsHeaders });
   } catch (error: any) {
     console.error("[/api/report/calendar] Неожиданная ошибка:", error);
-    return NextResponse.json(
-      { ok: false, error: error.message || "Внутренняя ошибка сервера" },
-      { status: 500 }
-    );
+      return NextResponse.json(
+        { ok: false, error: error.message || "Внутренняя ошибка сервера" },
+        { status: 500, headers: corsHeaders }
+      );
   }
 }
 
