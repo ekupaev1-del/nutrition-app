@@ -91,7 +91,7 @@ function ReportPageContent() {
       loadCalendar();
       if (selectedDate) {
         console.log("[auto-update] Обновляем отчёт за день:", selectedDate);
-        loadDayReport(selectedDate);
+        loadDayReport(selectedDate, true); // Принудительное обновление
       }
     };
 
@@ -102,7 +102,7 @@ function ReportPageContent() {
         loadCalendar();
         if (selectedDate) {
           console.log("[auto-update] Обновляем отчёт за день:", selectedDate);
-          loadDayReport(selectedDate);
+          loadDayReport(selectedDate, true); // Принудительное обновление
         }
       }
     };
