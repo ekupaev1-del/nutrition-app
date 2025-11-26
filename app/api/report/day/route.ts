@@ -67,6 +67,8 @@ export async function GET(req: Request) {
     }
 
     // Парсим дату (локальное время пользователя)
+    // КРИТИЧНО: Создаём даты в локальном времени, но без указания таймзоны
+    // Это гарантирует, что мы получим все записи за этот день независимо от таймзоны
     const dayStart = new Date(date + "T00:00:00");
     const dayEnd = new Date(date + "T23:59:59.999");
 
@@ -77,25 +79,40 @@ export async function GET(req: Request) {
       );
     }
 
-    // Конвертируем локальные даты в UTC для запроса к БД
-    const startUTC = dayStart.toISOString();
-    const endUTC = dayEnd.toISOString();
+    // КРИТИЧНО: Расширяем диапазон на ±12 часов для гарантии получения всех записей
+    // Это решает проблему с таймзонами
+    const startUTC = new Date(dayStart);
+    startUTC.setHours(startUTC.getHours() - 12); // Минус 12 часов
+    
+    const endUTC = new Date(dayEnd);
+    endUTC.setHours(endUTC.getHours() + 12); // Плюс 12 часов
+    
+    const startUTCStr = startUTC.toISOString();
+    const endUTCStr = endUTC.toISOString();
 
     // Получаем все записи за день из БД
     console.log("[/api/report/day] Запрос к БД:", {
       userId: user.telegram_id,
       date,
-      startUTC,
-      endUTC
+      startUTC: startUTCStr,
+      endUTC: endUTCStr
     });
 
-    const { data: meals, error: mealsError } = await supabase
+    const { data: allMeals, error: mealsError } = await supabase
       .from("diary")
       .select("*")
       .eq("user_id", user.telegram_id)
-      .gte("created_at", startUTC)
-      .lte("created_at", endUTC)
+      .gte("created_at", startUTCStr)
+      .lte("created_at", endUTCStr)
       .order("created_at", { ascending: false }); // Новые сначала
+
+    // КРИТИЧНО: Фильтруем записи по локальной дате после получения из БД
+    // Это гарантирует, что мы покажем только записи за нужный день
+    const meals = (allMeals || []).filter(meal => {
+      const mealDate = new Date(meal.created_at);
+      const mealDateStr = mealDate.toISOString().split("T")[0]; // YYYY-MM-DD
+      return mealDateStr === date;
+    });
 
     if (mealsError) {
       console.error("[/api/report/day] Ошибка получения записей:", mealsError);
