@@ -115,6 +115,18 @@ bot.start(async (ctx) => {
       const url = `https://nutrition-app4.vercel.app/?id=${userId}`;
       console.log(`[bot] Показываю приветствие для нового пользователя`);
 
+      // ВАЖНО: Удаляем старое keyboard меню, чтобы не показывались лишние кнопки
+      try {
+        await ctx.reply("•", {
+          reply_markup: {
+            remove_keyboard: true
+          }
+        });
+      } catch (e) {
+        // Игнорируем ошибки при удалении меню
+        console.log("[bot] Не удалось удалить старое меню (это нормально для новых пользователей)");
+      }
+
       // Отправляем приветственное сообщение с картинкой
       // Используем оптимизированную версию для быстрой отправки
       const welcomeImageUrl = "https://nutrition-app4.vercel.app/images/welcome-optimized.png";

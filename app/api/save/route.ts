@@ -224,7 +224,7 @@ export async function POST(req: Request) {
   if (user.telegram_id && isFirstTime) {
     console.log("[/api/save] Первое сохранение - отправляем меню в Telegram");
     const updateUrl = `https://nutrition-app4.vercel.app/?id=${user.id}`;
-    const statsUrl = `https://nutrition-app4.vercel.app/stats?id=${user.id}`;
+    const reportUrl = `https://nutrition-app4.vercel.app/report?id=${user.id}`;
     
     // Сообщение после сохранения анкеты - согласно скриншоту
     const messageText = `<b>✅ Отлично! Сохранил все ваши данные.
@@ -244,10 +244,7 @@ export async function POST(req: Request) {
           { text: "✏️ Обновить анкету", web_app: { url: updateUrl } }
         ],
         [
-          { text: "📋 Получить отчет", web_app: { url: statsUrl } }
-        ],
-        [
-          { text: "✏️ Редактировать прием пищи" }
+          { text: "📋 Получить отчет", web_app: { url: reportUrl } }
         ],
         [
           { text: "💡 Рекомендации" }
