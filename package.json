@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "deploy": "./deploy.sh",
-    "deploy:cli": "./deploy-cli.sh"
+    "deploy:cli": "./deploy-cli.sh",
+    "dev:bot": "ts-node --esm bot/bot.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.81.1",

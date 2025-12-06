@@ -48,7 +48,11 @@ function ReportPageContent() {
   // Календарь
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [datesWithData, setDatesWithData] = useState<string[]>([]);
+  const [datesWithPercentage, setDatesWithPercentage] = useState<Array<{date: string, percentage: number}>>([]);
   const [loadingCalendar, setLoadingCalendar] = useState(false);
+  
+  // Кэш процентов для дней (загружаем при открытии отчета)
+  const [dayPercentagesCache, setDayPercentagesCache] = useState<Map<string, number>>(new Map());
 
   // Отчёт за день
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -169,21 +173,104 @@ function ReportPageContent() {
       }
 
       const data = await response.json();
+      
+      // КРИТИЧНО: Сразу логируем что пришло от API
+      console.log("[loadCalendar] 🔍 СЫРЫЕ данные от API:", {
+        ok: data.ok,
+        hasDates: !!data.dates,
+        datesCount: data.dates?.length || 0,
+        hasDatesWithPercentage: !!data.datesWithPercentage,
+        datesWithPercentageCount: data.datesWithPercentage?.length || 0,
+        datesWithPercentage: data.datesWithPercentage,
+        allKeys: Object.keys(data)
+      });
 
       if (!data.ok) {
         console.error("[loadCalendar] Ошибка:", data.error);
         setDatesWithData([]);
+        setDatesWithPercentage([]);
         return;
       }
 
       // ВСЕГДА создаём новый массив для принудительного re-render
       const newDates = [...(data.dates || [])];
-      setDatesWithData(newDates);
+      // КРИТИЧНО: Принудительно создаем новый массив с процентами
+      const newDatesWithPercentage = Array.isArray(data.datesWithPercentage) 
+        ? data.datesWithPercentage.map(item => ({ date: item.date, percentage: Number(item.percentage) }))
+        : [];
       
-      console.log("[loadCalendar] Календарь обновлён:", { datesCount: newDates.length, dates: newDates });
+      setDatesWithData(newDates);
+      setDatesWithPercentage(newDatesWithPercentage);
+      
+      // КРИТИЧНО: Сохраняем проценты в кэш сразу
+      newDatesWithPercentage.forEach(item => {
+        setDayPercentagesCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(item.date, item.percentage);
+          return newCache;
+        });
+      });
+      
+      console.log("[loadCalendar] Календарь обновлён:", { 
+        datesCount: newDates.length, 
+        dates: newDates,
+        datesWithPercentageCount: newDatesWithPercentage.length,
+        datesWithPercentage: newDatesWithPercentage,
+        dec6InState: newDatesWithPercentage.find(d => d.date === '2025-12-06')
+      });
+      
+      // КРИТИЧНО: Если datesWithPercentage пустой, но есть dates - загружаем проценты для каждого дня отдельно
+      if (newDates.length > 0 && newDatesWithPercentage.length === 0 && userId) {
+        console.log("[loadCalendar] Загружаем проценты для каждого дня отдельно...");
+        const percentages: Array<{date: string, percentage: number}> = [];
+        
+        // Загружаем проценты параллельно для всех дней
+        const promises = newDates.map(async (date) => {
+          try {
+            const response = await fetch(`/api/report/day?userId=${userId}&date=${date}&_t=${Date.now()}`, {
+              cache: 'no-store'
+            });
+            if (response.ok) {
+              const dayData = await response.json();
+              if (dayData.ok && dayData.report) {
+                return { date, percentage: dayData.report.percentage };
+              }
+            }
+          } catch (err) {
+            console.error(`[loadCalendar] Ошибка загрузки процента для ${date}:`, err);
+          }
+          return null;
+        });
+        
+        const results = await Promise.all(promises);
+        results.forEach(result => {
+          if (result) {
+            percentages.push(result);
+            // Сохраняем в кэш
+            setDayPercentagesCache(prev => {
+              const newCache = new Map(prev);
+              newCache.set(result.date, result.percentage);
+              return newCache;
+            });
+          }
+        });
+        
+        setDatesWithPercentage(percentages);
+        console.log("[loadCalendar] ✅ Проценты загружены для", percentages.length, "дней");
+      } else if (newDatesWithPercentage.length > 0) {
+        // Сохраняем проценты в кэш
+        newDatesWithPercentage.forEach(item => {
+          setDayPercentagesCache(prev => {
+            const newCache = new Map(prev);
+            newCache.set(item.date, item.percentage);
+            return newCache;
+          });
+        });
+      }
     } catch (err: any) {
       console.error("[loadCalendar] Ошибка:", err);
       setDatesWithData([]);
+      setDatesWithPercentage([]);
     } finally {
       setLoadingCalendar(false);
     }
@@ -730,6 +817,49 @@ function ReportPageContent() {
               const dateKey = getDateKey(day);
               const hasData = datesWithData.includes(dateKey);
               const isToday = dateKey === new Date().toISOString().split("T")[0];
+              
+              // Находим процент выполнения нормы для этого дня
+              const dayData = datesWithPercentage.find(d => d.date === dateKey);
+              const cachedPercentage = dayPercentagesCache.get(dateKey);
+              // КРИТИЧНО: Используем Number() чтобы убедиться что это число
+              const percentage = Number(dayData?.percentage ?? cachedPercentage ?? 0);
+              
+              // КРИТИЧНО: Отладка для 6 декабря
+              if (dateKey === '2025-12-06' && hasData) {
+                console.log('🔴 6 ДЕКАБРЯ:', {
+                  dateKey,
+                  hasData,
+                  dayData,
+                  percentage,
+                  datesWithPercentageLength: datesWithPercentage.length,
+                  datesWithPercentage,
+                  cachedPercentage
+                });
+              }
+              
+              // Определяем цвет на основе процента
+              let dayColorClass = 'bg-gray-100 text-textPrimary hover:bg-gray-200';
+              if (hasData && percentage > 0) {
+                if (percentage > 115) {
+                  // Красный - сильное превышение (>115%)
+                  dayColorClass = 'bg-red-500 text-white hover:bg-red-600';
+                  if (dateKey === '2025-12-06') {
+                    console.log('✅ 6 декабря КРАСНЫЙ, процент:', percentage);
+                  }
+                } else if (percentage > 110) {
+                  // Желтый - превышение на 10-15% (110-115%)
+                  dayColorClass = 'bg-yellow-500 text-white hover:bg-yellow-600';
+                } else {
+                  // Зеленый - норма (0-110%)
+                  dayColorClass = 'bg-green-500 text-white hover:bg-green-600';
+                  if (dateKey === '2025-12-06') {
+                    console.error('❌ ОШИБКА: 6 декабря ЗЕЛЕНЫЙ, но процент:', percentage);
+                  }
+                }
+              } else if (hasData) {
+                // Если есть данные, но процент 0 - показываем серым
+                dayColorClass = 'bg-gray-300 text-textPrimary hover:bg-gray-400';
+              }
 
               return (
                 <button
@@ -748,12 +878,10 @@ function ReportPageContent() {
                   }}
                   className={`
                     aspect-square rounded-lg font-medium text-sm transition-colors
-                    ${hasData 
-                      ? 'bg-accent text-white hover:bg-accent/90' 
-                      : 'bg-gray-100 text-textPrimary hover:bg-gray-200'
-                    }
-                    ${isToday ? 'ring-2 ring-accent ring-offset-2' : ''}
+                    ${dayColorClass}
+                    ${isToday ? 'ring-2 ring-blue-400 ring-offset-2' : ''}
                   `}
+                  title={hasData ? `Калории: ${percentage.toFixed(1)}% от нормы` : ''}
                 >
                   {day}
                 </button>
@@ -768,7 +896,86 @@ function ReportPageContent() {
           </div>
         )}
 
-        <div className="mt-6 text-center text-sm text-textSecondary">
+        {/* График калорий за месяц */}
+        {datesWithPercentage.length > 0 && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+            <div className="text-sm font-semibold text-textPrimary mb-4">📊 График калорий за месяц</div>
+            <div className="space-y-2">
+              {/* Максимальное значение для масштабирования */}
+              {(() => {
+                const maxPercentage = Math.max(...datesWithPercentage.map(d => d.percentage), 100);
+                const daysInMonth = getCalendarDays().filter(d => d !== null).length;
+                
+                return (
+                  <div className="flex items-end gap-1" style={{ height: '120px' }}>
+                    {Array.from({ length: daysInMonth }, (_, i) => {
+                      const day = i + 1;
+                      const dateKey = getDateKey(day);
+                      const dayData = datesWithPercentage.find(d => d.date === dateKey);
+                      const percentage = dayData?.percentage || 0;
+                      const height = percentage > 0 ? Math.max((percentage / maxPercentage) * 100, 5) : 0;
+                      
+                      // Определяем цвет столбца
+                      let barColor = 'bg-gray-300';
+                      if (percentage > 115) {
+                        barColor = 'bg-red-500';
+                      } else if (percentage > 110) {
+                        barColor = 'bg-yellow-500';
+                      } else if (percentage > 0) {
+                        barColor = 'bg-green-500';
+                      }
+                      
+                      return (
+                        <div key={day} className="flex-1 flex flex-col items-center gap-1">
+                          <div
+                            className={`w-full ${barColor} rounded-t transition-all hover:opacity-80 cursor-pointer`}
+                            style={{ height: `${height}%`, minHeight: percentage > 0 ? '4px' : '0' }}
+                            title={`${day} декабря: ${percentage.toFixed(1)}% от нормы`}
+                            onClick={async () => {
+                              setDayReport(null);
+                              setError(null);
+                              setEditingMeal(null);
+                              await loadCalendar();
+                              await loadDayReport(dateKey, true);
+                            }}
+                          />
+                          <span className="text-xs text-textSecondary" style={{ fontSize: '9px' }}>
+                            {day}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              <div className="flex justify-between items-center mt-2 text-xs text-textSecondary">
+                <span>Дни месяца</span>
+                <span>% от нормы</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Легенда цветов */}
+        <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+          <div className="text-sm font-semibold text-textPrimary mb-2">Легенда:</div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-green-500"></div>
+              <span className="text-textSecondary">Норма (0-110%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-yellow-500"></div>
+              <span className="text-textSecondary">Превышение (110-115%)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-red-500"></div>
+              <span className="text-textSecondary">Сильное превышение (&gt;115%)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 text-center text-sm text-textSecondary">
           Нажмите на день, чтобы посмотреть отчёт
         </div>
       </div>

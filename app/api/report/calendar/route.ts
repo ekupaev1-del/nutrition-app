@@ -55,10 +55,10 @@ export async function GET(req: Request) {
       );
     }
 
-    // Получаем пользователя
+    // Получаем пользователя и его дневную норму
     const { data: user, error: userError } = await supabase
       .from("users")
-      .select("telegram_id")
+      .select("telegram_id, calories")
       .eq("id", numericId)
       .maybeSingle();
 
@@ -75,6 +75,15 @@ export async function GET(req: Request) {
         { ok: false, error: "Пользователь не найден" },
         { status: 404, headers: corsHeaders }
       );
+    }
+
+    const dailyNorm = user.calories || 0;
+    
+    // КРИТИЧНО: Проверяем что норма есть
+    if (dailyNorm === 0) {
+      console.warn("[/api/report/calendar] ⚠️ ВНИМАНИЕ: dailyNorm = 0! Проценты будут 0%");
+    } else {
+      console.log("[/api/report/calendar] ✅ Дневная норма:", dailyNorm, "ккал");
     }
 
     // Парсим месяц и вычисляем границы
@@ -105,7 +114,7 @@ export async function GET(req: Request) {
 
     const { data: meals, error: mealsError } = await supabase
       .from("diary")
-      .select("created_at")
+      .select("created_at, calories")
       .eq("user_id", user.telegram_id)
       .gte("created_at", startUTC)
       .lte("created_at", endUTC);
@@ -119,25 +128,89 @@ export async function GET(req: Request) {
     }
 
     console.log("[/api/report/calendar] Получено записей из БД:", meals?.length || 0);
+    console.log("[/api/report/calendar] Дневная норма:", dailyNorm);
+    console.log("[/api/report/calendar] Первые 3 записи:", meals?.slice(0, 3).map(m => ({
+      created_at: m.created_at,
+      calories: m.calories,
+      dateKey: new Date(m.created_at).toISOString().split("T")[0]
+    })));
 
-    // Извлекаем уникальные даты (в локальном времени)
-    const datesSet = new Set<string>();
+    // Группируем записи по датам и считаем калории за каждый день
+    const dayDataMap = new Map<string, number>();
     
     (meals || []).forEach(meal => {
       const mealDate = new Date(meal.created_at);
       const dayKey = mealDate.toISOString().split("T")[0]; // YYYY-MM-DD
-      datesSet.add(dayKey);
+      const currentCalories = dayDataMap.get(dayKey) || 0;
+      const mealCalories = Number(meal.calories || 0);
+      dayDataMap.set(dayKey, currentCalories + mealCalories);
+      
+      // Отладка для 6 декабря
+      if (dayKey === '2025-12-06') {
+        console.log(`[/api/report/calendar] 🔴 6 декабря: добавляем ${mealCalories} ккал, всего: ${currentCalories + mealCalories}`);
+      }
+    });
+    
+    console.log("[/api/report/calendar] dayDataMap размер:", dayDataMap.size);
+    console.log("[/api/report/calendar] dayDataMap содержимое:", Array.from(dayDataMap.entries()));
+
+    // Создаём массив объектов с датами и процентами
+    const datesWithPercentage = Array.from(dayDataMap.entries())
+      .map(([date, totalCalories]) => {
+        const percentage = dailyNorm > 0 ? (totalCalories / dailyNorm) * 100 : 0;
+        const roundedPercentage = Math.round(percentage * 10) / 10;
+        
+        // Отладка: логируем расчет процента
+        if (roundedPercentage > 110) {
+          console.log(`[/api/report/calendar] День ${date}: ${totalCalories} ккал / ${dailyNorm} ккал = ${roundedPercentage}%`);
+        }
+        
+        return {
+          date,
+          percentage: roundedPercentage
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Для обратной совместимости также возвращаем массив дат
+    const dates = datesWithPercentage.map(item => item.date);
+    
+    console.log("[/api/report/calendar] Возвращаем даты с процентами:", { 
+      datesCount: dates.length,
+      dailyNorm: dailyNorm,
+      datesWithPercentage: datesWithPercentage.slice(0, 10) // Показываем первые 10 для логов
     });
 
-    const dates = Array.from(datesSet).sort();
+    // КРИТИЧНО: Проверяем что данные есть перед возвратом
+    console.log("[/api/report/calendar] 🔍 ПЕРЕД возвратом:", {
+      datesCount: dates.length,
+      datesWithPercentageCount: datesWithPercentage.length,
+      datesWithPercentage: datesWithPercentage,
+      dailyNorm: dailyNorm
+    });
     
-    console.log("[/api/report/calendar] Возвращаем даты:", { datesCount: dates.length, dates });
-
-    // Возвращаем массив дат
-    return NextResponse.json({
+    // Возвращаем массив дат и данные с процентами
+    const responseData = {
       ok: true,
-      dates
-    }, { headers: corsHeaders });
+      dates, // Для обратной совместимости
+      datesWithPercentage // Новые данные с процентами
+    };
+    
+    console.log("[/api/report/calendar] ✅ Возвращаем данные:", {
+      hasDates: !!responseData.dates,
+      hasDatesWithPercentage: !!responseData.datesWithPercentage,
+      datesWithPercentageLength: responseData.datesWithPercentage?.length || 0,
+      datesWithPercentage: responseData.datesWithPercentage
+    });
+    
+    // КРИТИЧНО: Проверяем что datesWithPercentage не пустой
+    if (responseData.datesWithPercentage.length === 0 && responseData.dates.length > 0) {
+      console.error("[/api/report/calendar] ❌ ОШИБКА: datesWithPercentage пустой, но dates есть!");
+      console.error("[/api/report/calendar] dayDataMap:", Array.from(dayDataMap.entries()));
+      console.error("[/api/report/calendar] dailyNorm:", dailyNorm);
+    }
+    
+    return NextResponse.json(responseData, { headers: corsHeaders });
   } catch (error: any) {
     console.error("[/api/report/calendar] Неожиданная ошибка:", error);
       return NextResponse.json(

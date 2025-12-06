@@ -417,6 +417,7 @@ bot.command("help", async (ctx) => {
 📊 Управление:
 /отменить - Удалить последнее блюдо за сегодня
 /отчет - Показать полный отчёт за сегодня
+/календарь - Показать календарь отчётов за месяц
 
 Примеры:
 • "куриная грудка 200г с рисом"
@@ -441,6 +442,7 @@ bot.command("помощь", async (ctx) => {
 📊 Управление:
 /отменить - Удалить последнее блюдо за сегодня
 /отчет - Показать полный отчёт за сегодня
+/календарь - Показать календарь отчётов за месяц
 
 Примеры:
 • "куриная грудка 200г с рисом"
@@ -1152,6 +1154,329 @@ bot.command("отчет", async (ctx) => {
   } catch (error) {
     console.error("[bot] Ошибка /отчет:", error);
     ctx.reply("Произошла ошибка.");
+  }
+});
+
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+//      Календарь отчётов
+// ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+/**
+ * Получает данные о калориях за месяц для пользователя
+ */
+async function getMonthCaloriesData(
+  telegram_id: number,
+  year: number,
+  month: number
+): Promise<Map<string, { consumed: number; target: number; percentage: number }>> {
+  try {
+    console.log(`[getMonthCaloriesData] Запрос данных за ${year}-${month} для telegram_id: ${telegram_id}`);
+
+    // Получаем целевую норму калорий пользователя
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("calories")
+      .eq("telegram_id", telegram_id)
+      .maybeSingle();
+
+    if (userError) {
+      console.error("[getMonthCaloriesData] Ошибка получения пользователя:", userError);
+      return new Map();
+    }
+
+    const targetCalories = user?.calories ? Number(user.calories) : 0;
+    
+    if (targetCalories === 0) {
+      console.log("[getMonthCaloriesData] У пользователя нет установленной нормы калорий");
+      return new Map();
+    }
+
+    // Вычисляем границы месяца
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    const startISO = monthStart.toISOString();
+    const endISO = monthEnd.toISOString();
+
+    console.log(`[getMonthCaloriesData] Период: ${startISO} - ${endISO}`);
+
+    // Получаем все записи за месяц
+    const { data: meals, error: mealsError } = await supabase
+      .from("diary")
+      .select("calories, created_at")
+      .eq("user_id", telegram_id)
+      .gte("created_at", startISO)
+      .lte("created_at", endISO);
+
+    if (mealsError) {
+      console.error("[getMonthCaloriesData] Ошибка получения записей:", mealsError);
+      return new Map();
+    }
+
+    console.log(`[getMonthCaloriesData] Получено записей: ${meals?.length || 0}`);
+
+    // Группируем по датам и считаем калории за каждый день
+    const dayDataMap = new Map<string, { consumed: number; target: number; percentage: number }>();
+
+    (meals || []).forEach((meal) => {
+      const mealDate = new Date(meal.created_at);
+      const dayKey = `${year}-${String(month).padStart(2, "0")}-${String(mealDate.getDate()).padStart(2, "0")}`;
+      
+      const current = dayDataMap.get(dayKey) || { consumed: 0, target: targetCalories, percentage: 0 };
+      current.consumed += Number(meal.calories || 0);
+      
+      // Пересчитываем процент
+      current.percentage = targetCalories > 0 ? (current.consumed / targetCalories) * 100 : 0;
+      
+      dayDataMap.set(dayKey, current);
+    });
+
+    console.log(`[getMonthCaloriesData] Обработано дней: ${dayDataMap.size}`);
+    console.log(`[getMonthCaloriesData] Пример данных:`, Array.from(dayDataMap.entries()).slice(0, 3));
+
+    return dayDataMap;
+  } catch (error) {
+    console.error("[getMonthCaloriesData] Исключение:", error);
+    return new Map();
+  }
+}
+
+/**
+ * Генерирует inline keyboard календаря с эмодзи индикаторами
+ */
+function generateCalendarKeyboard(
+  year: number,
+  month: number,
+  caloriesData: Map<string, { consumed: number; target: number; percentage: number }>
+): any[][] {
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  const daysInMonth = lastDay.getDate();
+  const startDayOfWeek = firstDay.getDay(); // 0 = воскресенье, 1 = понедельник, ...
+  
+  // Корректируем для понедельника = 0
+  const adjustedStartDay = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+
+  const keyboard: any[][] = [];
+  
+  // Заголовки дней недели
+  const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+  const headerRow = weekDays.map(day => ({ text: day, callback_data: "ignore" }));
+  keyboard.push(headerRow);
+
+  // Пустые ячейки до первого дня
+  let currentRow: any[] = [];
+  for (let i = 0; i < adjustedStartDay; i++) {
+    currentRow.push({ text: " ", callback_data: "ignore" });
+  }
+
+  // Дни месяца
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const dayData = caloriesData.get(dayKey);
+    
+    let emoji = "";
+    if (dayData) {
+      const percentage = dayData.percentage;
+      if (percentage > 115) {
+        emoji = "🔴"; // Превышение более 15%
+      } else if (percentage > 100) {
+        emoji = "🟡"; // Превышение менее 15%
+      } else {
+        emoji = "🟢"; // В пределах нормы
+      }
+    }
+
+    const buttonText = `${day}${emoji ? ` ${emoji}` : ""}`;
+    currentRow.push({
+      text: buttonText,
+      callback_data: `calendar_day_${dayKey}`
+    });
+
+    // Если строка заполнена (7 дней) или это последний день месяца
+    if (currentRow.length === 7 || day === daysInMonth) {
+      keyboard.push(currentRow);
+      currentRow = [];
+    }
+  }
+
+  // Добавляем кнопки навигации
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  const monthNames = [
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+  ];
+
+  keyboard.push([
+    { text: "◀️", callback_data: `calendar_month_${prevYear}_${prevMonth}` },
+    { text: `${monthNames[month - 1]} ${year}`, callback_data: "ignore" },
+    { text: "▶️", callback_data: `calendar_month_${nextYear}_${nextMonth}` }
+  ]);
+
+  return keyboard;
+}
+
+/**
+ * Команда /календарь - показывает календарь отчётов
+ */
+bot.command("календарь", async (ctx) => {
+  try {
+    const telegram_id = ctx.from?.id;
+    if (!telegram_id) {
+      return ctx.reply("Ошибка: не удалось определить ваш Telegram ID");
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+
+    console.log(`[bot] /календарь вызван для ${year}-${month}`);
+
+    // Получаем данные о калориях за месяц
+    const caloriesData = await getMonthCaloriesData(telegram_id, year, month);
+    console.log(`[bot] Получено данных о калориях: ${caloriesData.size} дней`);
+
+    // Генерируем клавиатуру
+    const keyboard = generateCalendarKeyboard(year, month, caloriesData);
+
+    const monthNames = [
+      "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+      "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+    ];
+
+    await ctx.reply(
+      `📅 Календарь отчётов\n\n` +
+      `🟢 - В пределах нормы\n` +
+      `🟡 - Превышение менее 15%\n` +
+      `🔴 - Превышение более 15%\n\n` +
+      `Нажмите на день, чтобы посмотреть отчёт`,
+      {
+        reply_markup: {
+          inline_keyboard: keyboard
+        }
+      }
+    );
+  } catch (error) {
+    console.error("[bot] Ошибка /календарь:", error);
+    ctx.reply("Произошла ошибка при загрузке календаря.");
+  }
+});
+
+/**
+ * Обработка callback для календаря
+ */
+bot.on("callback_query", async (ctx) => {
+  try {
+    const data = ctx.callbackQuery.data;
+    if (!data) return;
+
+    // Обработка навигации по месяцам
+    if (data.startsWith("calendar_month_")) {
+      const parts = data.split("_");
+      const year = parseInt(parts[2]);
+      const month = parseInt(parts[3]);
+
+      const telegram_id = ctx.from?.id;
+      if (!telegram_id) {
+        return ctx.answerCbQuery("Ошибка: не удалось определить ваш Telegram ID");
+      }
+
+      console.log(`[bot] Переключение на месяц ${year}-${month}`);
+
+      // Получаем данные о калориях за месяц
+      const caloriesData = await getMonthCaloriesData(telegram_id, year, month);
+
+      // Генерируем клавиатуру
+      const keyboard = generateCalendarKeyboard(year, month, caloriesData);
+
+      const monthNames = [
+        "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+        "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+      ];
+
+      await ctx.editMessageText(
+        `📅 Календарь отчётов\n\n` +
+        `🟢 - В пределах нормы\n` +
+        `🟡 - Превышение менее 15%\n` +
+        `🔴 - Превышение более 15%\n\n` +
+        `Нажмите на день, чтобы посмотреть отчёт`,
+        {
+          reply_markup: {
+            inline_keyboard: keyboard
+          }
+        }
+      );
+
+      return ctx.answerCbQuery();
+    }
+
+    // Обработка выбора дня
+    if (data.startsWith("calendar_day_")) {
+      const dateStr = data.replace("calendar_day_", "");
+      const [year, month, day] = dateStr.split("-").map(Number);
+
+      const telegram_id = ctx.from?.id;
+      if (!telegram_id) {
+        return ctx.answerCbQuery("Ошибка: не удалось определить ваш Telegram ID");
+      }
+
+      console.log(`[bot] Выбран день ${dateStr}`);
+
+      // Получаем отчёт за день
+      const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999);
+      const startISO = dayStart.toISOString();
+      const endISO = dayEnd.toISOString();
+
+      const { data: meals, error } = await supabase
+        .from("diary")
+        .select("meal_text, calories, protein, fat, carbs, created_at")
+        .eq("user_id", telegram_id)
+        .gte("created_at", startISO)
+        .lte("created_at", endISO)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("[bot] Ошибка получения отчёта за день:", error);
+        return ctx.answerCbQuery("Ошибка базы данных");
+      }
+
+      const dailyNorm = await getUserDailyNorm(telegram_id);
+      const totalCalories = meals?.reduce((sum, meal) => sum + Number(meal.calories || 0), 0) || 0;
+
+      let report = `📋 Отчёт за ${day}.${month}.${year}:\n\n`;
+
+      if (!meals || meals.length === 0) {
+        report += "В этот день не было приёмов пищи.";
+      } else {
+        meals.forEach((meal, index) => {
+          const time = new Date(meal.created_at).toLocaleTimeString("ru-RU", {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+          report += `${index + 1}. ${meal.meal_text} (${time})\n   🔥 ${meal.calories} ккал | 🥚 ${Number(meal.protein).toFixed(1)}г | 🥥 ${Number(meal.fat).toFixed(1)}г | 🍚 ${Number(meal.carbs || 0).toFixed(1)}г\n\n`;
+        });
+
+        if (dailyNorm) {
+          const percentage = dailyNorm.calories > 0 ? (totalCalories / dailyNorm.calories) * 100 : 0;
+          report += `\n🔥 Всего: ${totalCalories} / ${dailyNorm.calories} ккал (${percentage.toFixed(1)}%)`;
+        }
+      }
+
+      await ctx.reply(report);
+      return ctx.answerCbQuery();
+    }
+
+    // Игнорируем другие callback
+    if (data === "ignore") {
+      return ctx.answerCbQuery();
+    }
+  } catch (error) {
+    console.error("[bot] Ошибка обработки callback:", error);
+    ctx.answerCbQuery("Произошла ошибка");
   }
 });
 
